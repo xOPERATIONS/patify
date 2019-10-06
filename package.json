@@ -6,8 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "James Montalvo",
+  "license": "MIT",
   "dependencies": {
     "cheerio": "^1.0.0-rc.3"
   }

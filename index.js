@@ -8,8 +8,9 @@ if (!process.argv[2]) {
 const fs = require('fs');
 const path = require('path');
 
+
 const htmlFile = path.join(process.cwd(), process.argv[2]);
-const basename = path.basename(htmlFile);
+const basename = path.basename(htmlFile, path.extname(htmlFile));
 const dirname = path.dirname(htmlFile);
 console.log(dirname);
 
@@ -50,8 +51,9 @@ const taskHeader = `roles:
 steps:
 `;
 
-$("body div div .MsoNormalTable").each((t,table) => {
-	tasks[t] = `title: "Task ${t}"\n\n${taskHeader}`;
+$("body > div > div > table").each((t,table) => {
+
+	let taskText = '';
 
 	$(table).children("tbody").children("tr").each((r,row) => {
 		let rowText = '';
@@ -68,11 +70,22 @@ $("body div div .MsoNormalTable").each((t,table) => {
 					.replace(/\s+/g, ' ')
 					.replace('EV1', '{{role:crewA}}')
 					.replace('EV2', '{{role:crewB}}')
+					.replace('�', '')
+					.replace('�', '')
+					.replace('�', '')
+					.replace('�', '')
+					.replace('� ', '...')
+					// .replace('�', '') <-- false ellipsis (...)
+					// .replace('�', '')
+					// .replace('�', '')
+					// .replace('���', '')
+
+					.replace('”', '"')
 					.trim()
 					.replace(/^\d+\. /,'')
 					.trim();
 
-				let isCheckboxList = step.indexOf("q ") === 0;
+				let isCheckboxList = step.indexOf("q ") === 0 || step.indexOf("qq") === 0;
 
 				if (step) {
 					if (isCheckboxList) {
@@ -99,6 +112,7 @@ $("body div div .MsoNormalTable").each((t,table) => {
 					rowText += '      crewB:\n';
 				} else {
 					console.error('bad column');
+					console.error(cellText)
 				}
 
 				rowText += cellText
@@ -107,11 +121,16 @@ $("body div div .MsoNormalTable").each((t,table) => {
 		});
 
 		if (rowText) {
-			tasks[t] += '  - simo:\n\n';
-			tasks[t] += rowText + '\n';
+			taskText += '  - simo:\n\n';
+			taskText += rowText + '\n';
 		}
 
 	});
+
+	if (taskText) {
+		tasks[t] = `title: "Task ${t}"\n\n${taskHeader}\n${taskText}`;
+	}
+
 });
 
 var procedure = `procedure_name: ${basename}
@@ -146,6 +165,10 @@ if (!fs.existsSync(procsDir)) {
 }
 
 for (let t = 0; t < tasks.length; t++) {
+	if (!tasks[t]) {
+		continue;
+	}
+
 	const taskFileName = `${basename}-task-${t}.yml`
 	const taskFilePath = path.join(tasksDir, taskFileName);
 	fs.writeFileSync(taskFilePath, tasks[t]);
@@ -161,3 +184,8 @@ for (let t = 0; t < tasks.length; t++) {
 
 fs.writeFileSync(path.join(procsDir, `${basename}.yml`), procedure);
 console.log("complete!");
+
+
+
+
+
