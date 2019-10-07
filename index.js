@@ -11,8 +11,7 @@ const path = require('path');
 
 const htmlFile = path.join(process.cwd(), process.argv[2]);
 const basename = path.basename(htmlFile, path.extname(htmlFile));
-const dirname = path.dirname(htmlFile);
-console.log(dirname);
+const projectDir = path.dirname(path.dirname(htmlFile));
 
 if (!['.html', '.htm'].includes(path.extname(htmlFile))) {
 	console.error(`${htmlFile} does not appear to be an HTML file`);
@@ -154,8 +153,8 @@ tasks:
 `;
 
 
-const tasksDir = path.join(dirname, 'tasks');
-const procsDir = path.join(dirname, 'procedures');
+const tasksDir = path.join(projectDir, 'tasks');
+const procsDir = path.join(projectDir, 'procedures');
 
 if (!fs.existsSync(tasksDir)) {
 	fs.mkdirSync(tasksDir);
