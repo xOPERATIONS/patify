@@ -10,10 +10,25 @@ if (!process.argv[2]) {
 const fs = require('fs');
 const path = require('path');
 
-
 const htmlFile = path.join(process.cwd(), process.argv[2]);
+const htmlFileDir = path.dirname(htmlFile);
+const projectDir = path.dirname(htmlFileDir);
+
+const tasksDir = path.join(projectDir, 'tasks');
+const procsDir = path.join(projectDir, 'procedures');
+const imagesDir = path.join(projectDir, 'images');
+
+if (!fs.existsSync(tasksDir)) {
+	fs.mkdirSync(tasksDir);
+}
+if (!fs.existsSync(procsDir)) {
+	fs.mkdirSync(procsDir);
+}
+if (!fs.existsSync(procsDir)) {
+	fs.mkdirSync(imagesDir);
+}
+
 const basename = path.basename(htmlFile, path.extname(htmlFile));
-const projectDir = path.dirname(path.dirname(htmlFile));
 
 if (!['.html', '.htm'].includes(path.extname(htmlFile))) {
 	console.error(`${htmlFile} does not appear to be an HTML file`);
@@ -23,6 +38,10 @@ if (!['.html', '.htm'].includes(path.extname(htmlFile))) {
 if (!fs.existsSync(htmlFile)) {
 	console.error(`${htmlFile} is not a valid file`);
 	process.exit(1);
+}
+
+const arrayUnique = (value, index, self) => {
+	return self.indexOf(value) === index
 }
 
 let emptyLines = 0;
@@ -55,11 +74,49 @@ const taskHeader = `roles:
 steps:
 `;
 
+const getTaskHeader = function(title, steps, crewAduration, crewBduration) {
+	let crewA = '', crewB = '';
 
+	if (crewAduration) {
+		crewA = `
+  - name: crewA
+    description: TBD
+    duration:
+      minutes: ${crewAduration}
+`;
+	}
+
+	if (crewBduration) {
+		crewB = `  - name: crewB
+    description: TBD
+    duration:
+      minutes: ${crewBduration}
+`;
+	}
+
+	if (!crewA && !crewB) {
+		throw new Error('need either crew A or crew B');
+	}
+
+	return `---
+title: "${title}"
+roles:
+
+${crewA}
+
+${crewB}
+
+steps:
+
+${steps}
+`;
+};
+
+
+let currentTaskTitles = [];
 
 let consecutiveLines = 0;
 $("body > div > div > table").each((t,table) => {
-	console.log('NEW TABLE');
 
 	const colHeaders = [];
 	$(table).children("thead").children("tr").children('td').each((i,e) => {
@@ -87,7 +144,6 @@ $("body > div > div > table").each((t,table) => {
 			}
 		}
 	}
-	console.log(colIds);
 
 	let taskText = '';
 	$(table).children("tbody").children("tr").each((r,row) => {
@@ -110,15 +166,44 @@ $("body > div > div > table").each((t,table) => {
 				console.error($(row).text());
 			}
 			$(col).children('p').each((p,para) => {
-				rowText[c].push(processParagraph(p, para));
+				rowText[c].push(processParagraph(p, para, colId));
 			});
 		});
 
-		taskText = createSyncedSimoBlocks(rowText, actorKeys);
+		taskText += createSyncedSimoBlocks(rowText, actorKeys);
 	});
 
 	if (taskText) {
-		tasks[t] = `title: "Task ${t}"\n\n${taskHeader}\n${taskText}`;
+		let titleText;
+		let title;
+		let minutesByColId;
+		if (currentTaskTitles.length > 0) {
+			minutesByColId = {};
+			let allTitles = [];
+			for (const subtask of currentTaskTitles) {
+				allTitles.push(subtask.title);
+				subtask.colId.split(' + ').forEach((cur, i) => {
+					if (!minutesByColId[cur]) {
+						minutesByColId[cur] = 0;
+					}
+					minutesByColId[cur] += subtask.hours * 60 + subtask.minutes;
+				});
+			}
+			title = allTitles.filter(arrayUnique).join(' & ');
+		}
+
+		currentTaskTitles = []; // reset for next task
+
+		if (!title) {
+			title = `Task ${t}`;
+		}
+		if (!minutesByColId) {
+			minutesByColId = { crewA: 30, crewB: 30 };
+		}
+		tasks[t] = {
+			fileContent: getTaskHeader(title, taskText, minutesByColId.crewA, minutesByColId.crewB),
+			title: title
+		};
 	}
 
 });
@@ -144,30 +229,47 @@ tasks:
 `;
 
 
-const tasksDir = path.join(projectDir, 'tasks');
-const procsDir = path.join(projectDir, 'procedures');
-
-if (!fs.existsSync(tasksDir)) {
-	fs.mkdirSync(tasksDir);
-}
-if (!fs.existsSync(procsDir)) {
-	fs.mkdirSync(procsDir);
-}
-
+const taskColors = [
+	'#D6D6D6',
+	'#F0F8FF',
+	'#F0F8FF',
+	'#F0F8FF',
+	'#FFDEAD',
+	'#FFDEAD',
+	'#FFDEAD',
+	'#DEB887',
+	'#DEB887',
+	'#DEB887',
+	'#9AFF9A',
+	'#9AFF9A',
+	'#9AFF9A',
+	'#9AFF9A',
+	'#FFBBFF',
+	'#FFBBFF',
+	'#FFBBFF',
+	'#D3D3D3'
+];
 for (let t = 0; t < tasks.length; t++) {
-	if (!tasks[t]) {
+	if (!tasks[t] || !tasks[t].fileContent) {
 		continue;
 	}
+	let color;
+	if (t === 0 || t === tasks.length - 1) {
+		color = '#D6D6D6';
+	} else {
+		color = taskColors[t] || taskColors[taskColors.length - 1];
+	}
 
-	const taskFileName = `${basename}-task-${t}.yml`
+	// todo fixme use filenameify or whatever it's called
+	const taskFileName = `${basename}-${tasks[t].title.replace(/\//g, '-').replace(/\\/g, '-')}.yml`
 	const taskFilePath = path.join(tasksDir, taskFileName);
-	fs.writeFileSync(taskFilePath, tasks[t]);
+	fs.writeFileSync(taskFilePath, tasks[t].fileContent);
 	procedure += `
   - file: ${taskFileName}
     roles:
       crewA: EV1
       crewB: EV2
-    color: "#F5B041"
+    color: "${color}"
 `;
 
 }
@@ -178,22 +280,46 @@ console.log("complete!");
 
 
 
-function processParagraph(index, paragraphSourceText) {
-	let paraElem = $(paragraphSourceText);
+function processParagraph(index, paragraphSourceText, colId) {
+	let $para = $(paragraphSourceText);
+	let images = [];
+	$para.find('img').each((i,e) => {
+		let $img = $(e);
+		let src = $img.attr('src').replace(/%20/g, ' ');
+		let srcParts = src.split('/');
+		let filename = srcParts[srcParts.length - 1];
+		let imagePaths = {
+			filename: filename,
+			projectImagePath: path.join(imagesDir, filename),
+			docxImagePath: path.join(htmlFileDir, src)
+		};
+		images.push(imagePaths);
+		if (fs.existsSync(imagePaths.projectImagePath)) {
+			fs.unlinkSync(imagePaths.projectImagePath); // remove image if it already exists
+		}
+		fs.copyFileSync(imagePaths.docxImagePath, imagePaths.projectImagePath);
+	});
 
-	const titleRegex = /([A-Z ]+)\((\d{2}:\d{2})\)/;
-	let step = paraElem.text()
-		.replace('"', '\\"')
-		.replace('&nbsp;', ' ')
-		.replace('\n', ' ')
+
+	const titleRegex = /([A-Z \/&-]+)\((\d{2}:\d{2})\)/;
+	let step = $para.text()
+		.replace(/"/g, '\\"')
+		.replace(/&nbsp;/g, ' ')
+		.replace(/\n/g, ' ')
 		.replace(/\s+/g, ' ')
-		.replace('EV1', '{{role:crewA}}')
-		.replace('EV2', '{{role:crewB}}')
-		.replace('Ö', '{{CHECK}}')
-		.replace('¬', '{{LEFT}}')
-		.replace('®', '{{RIGHT}}')
-		.replace('à', '{{RIGHT}}')
-		.replace('ß', '{{LEFT}}')
+		.replace(/EV1/g, '{{role:crewA}}')
+		.replace(/EV2/g, '{{role:crewB}}')
+		.replace(/Ö/g, '{{CHECK}}')
+		.replace(/¬/g, '{{LEFT}}')
+		.replace(/®/g, '{{RIGHT}}')
+		.replace(/à/g, '{{RIGHT}}')
+		.replace(/ß/g, '{{LEFT}}')
+
+		// FIXME
+		// FIXME ALL these replaces should use regex /thingToReplace/g to replace multiple occurences
+		// FIXME
+
+
 		// .replace('�', '')
 		// .replace('�', '')
 		// .replace('�', '')
@@ -204,7 +330,7 @@ function processParagraph(index, paragraphSourceText) {
 		// .replace('�', '')
 		// .replace('���', '')
 
-		.replace('”', '\\"')
+		.replace(/”/g, '\\"')
 		.trim()
 		.replace(/^\d+\. /,'')
 		.trim();
@@ -224,16 +350,39 @@ function processParagraph(index, paragraphSourceText) {
 		} else {
 			if (titleMatch && titleMatch[1].trim()) {
 				let duration = titleMatch[2].split(':').map((elem) => { return parseInt(elem); });
-				paragraphYamlText += `        - title: "${titleMatch[1].trim()}"\n`;
+				let title = titleMatch[1].trim();
+				let hours = duration[0];
+				let minutes = duration[1];
+				paragraphYamlText += `        - title: "${title}"\n`;
 				paragraphYamlText += `          duration:\n`;
-				paragraphYamlText += `            hours: ${duration[0]}\n`;
-				paragraphYamlText += `            minutes: ${duration[1]}\n`;
+				paragraphYamlText += `            hours: ${hours}\n`;
+				paragraphYamlText += `            minutes: ${minutes}\n`;
+				currentTaskTitles.push({
+					title: title,
+					hours: hours,
+					minutes: minutes,
+					colId: colId
+				});
 			} else {
 				paragraphYamlText += `        - step: "${step}"\n`;
 			}
 			wasCheckboxList = false;
 		}
 	}
+
+	if (images.length > 0) {
+		// if nothing above generated text, add any images as their own step
+		if (paragraphYamlText.trim() === '') {
+			paragraphYamlText += `        - images:\n`;
+		} else {
+			paragraphYamlText += `          images:\n`;
+		}
+		for (const img of images) {
+			paragraphYamlText += `          - path: "${img.filename}"\n`;
+		}
+	}
+
+	// if still no text even after images...
 	if (paragraphYamlText.trim() === '') {
 		emptyLines++;
 		// console.log('empty line');
@@ -253,12 +402,6 @@ function processParagraph(index, paragraphSourceText) {
  */
 function createSimoBlocks(rowArray, actorKeys) {
 
-	// Don't allow the simo block to have more than this many consecutive steps for a single actor,
-	// due to an issue with Word or the npm docx library. Rows are set not to break across a page,
-	// but if a row is bigger than one page it _must_ break across a page and currently it does not.
-	// Instead, it just disappears beyond the length of the page.
-	const maxBlockLength = 20;
-
 	// const actorKeys = [
 	// 	'      IV:\n',
 	// 	'      crewA:\n',
@@ -266,7 +409,10 @@ function createSimoBlocks(rowArray, actorKeys) {
 	// ];
 	let rowYamlText;
 
-	console.log(`creating simo block. column lengths = ${rowArray[0].length}, ${rowArray[1].length}, ${rowArray[2].length}`);
+	if (actorKeys.reduce((acc,cur) => { return cur.indexOf('+') > -1 ? true : acc; }, false)) {
+		var hasJointActors = true;
+	}
+
 	if (rowArray[0].length > 0 || rowArray[1].length > 0 || rowArray[2].length > 0) {
 		rowYamlText = '  - simo:\n\n';
 		for (let i = 0; i < rowArray.length; i++) {
@@ -302,13 +448,7 @@ function createSyncedSimoBlocks(rowArray, actorKeys) {
 	const emptyLineClusterSize = 2;
 
 	actorKeys = actorKeys.map((val) => { return `      ${val}:\n`; });
-	console.log('using actor keys...');
-	console.log(actorKeys);
-	// const actorKeys = [
-	// 	'      IV:\n',
-	// 	'      crewA:\n',
-	// 	'      crewB:\n'
-	// ];
+
 	let rowYamlText;
 
 	let index = 0;
