@@ -2,6 +2,8 @@
 
 'use strict';
 
+console.log('patify v0.1.0');
+
 if (!process.argv[2]) {
 	console.error('You must pass a valid file path into this script');
 	process.exit(1);
@@ -56,23 +58,322 @@ try {
 	throw new Error(err);
 }
 
-const tasks = [];
+/**
+ * Take an array comprising the three rows of the procedure, and process it into one or more 'simo'
+ * blocks
+ * @param  {[Array]} rowArray  Array of the form [[col,0,steps], [col,1,steps], [col,2,steps]]
+ * @param  {*} actorKeys       TBD
+ * @return {[string]}          YAML text with at least one simo block
+ */
+function createSimoBlocks(rowArray, actorKeys) {
+
+	/**
+	 * const actorKeys = [
+	 *  '      IV:\n',
+	 *  '      crewA:\n',
+	 *  '      crewB:\n'
+	 * ];
+	 */
+	let rowYamlText;
+
+	// todo side effects from this?
+	if (actorKeys.reduce(
+		(acc, cur) => {
+			return cur.indexOf('+') > -1 ? true : acc;
+		}, false)) {
+
+		// var hasJointActors = true;
+	}
+
+	if (rowArray[0].length > 0 || rowArray[1].length > 0 || rowArray[2].length > 0) {
+		rowYamlText = '  - simo:\n\n';
+		for (let i = 0; i < rowArray.length; i++) {
+			if (rowArray[i].length > 0) {
+				let actorStepsAdded = '';
+				for (const line of rowArray[i]) {
+					if (line !== false) {
+						actorStepsAdded += line;
+					}
+				}
+				if (actorStepsAdded !== '') {
+					rowYamlText += actorKeys[i] + actorStepsAdded;
+				}
+			}
+		}
+	} else {
+		rowYamlText = '';
+	}
+
+	return rowYamlText;
+}
+
+function createSyncedSimoBlocks(rowArray, actorKeys) {
+
+	// Don't allow the simo block to have more than this many consecutive steps for a single actor,
+	// due to an issue with Word or the npm docx library. Rows are set not to break across a page,
+	// but if a row is bigger than one page it _must_ break across a page and currently it does not.
+	// Instead, it just disappears beyond the length of the page.
+	const maxBlockLength = 20;
+
+	// how many empty lines together to consider it a cluster requiring a sync point
+	const emptyLineClusterSize = 2;
+
+	actorKeys = actorKeys.map((val) => {
+		return `      ${val}:\n`;
+	});
+
+	let index = 0;
+	// const somethingelse = [0, 0, 0];
+	let keepRowing = true;
+
+	let output = '';
+
+	let consecBlanks,
+		nextBlock;
+
+	const validStep = function(step) {
+		return step && typeof step === 'string' && step.trim() !== '';
+	};
+
+	const stepIsSubstep = function(step) {
+		if (!step) {
+			return false;
+		}
+
+		// substeps have at least 6 space in front
+		return step.indexOf('          ') === 0;
+	};
+
+	const reset = function() {
+		consecBlanks = [0, 0, 0];
+		nextBlock = [[], [], []];
+	};
+	reset();
+
+	while (keepRowing) {
+		const iv = rowArray[0][index];
+		const ev1 = rowArray[1][index];
+		const ev2 = rowArray[2][index];
+
+		// const current = [
+		// rowArray[0][index],
+		// rowArray[1][index],
+		// rowArray[2][index]
+		// ];
+
+		const next = [
+			rowArray[0][index + 1],
+			rowArray[1][index + 1],
+			rowArray[2][index + 1]
+		];
+
+		let nextStepContainsSubstep;
+		if (stepIsSubstep(next[0]) || stepIsSubstep(next[1]) || stepIsSubstep(next[2])) {
+			nextStepContainsSubstep = true;
+		} else {
+			nextStepContainsSubstep = false;
+		}
+
+		if (validStep(iv)) {
+			nextBlock[0].push(iv);
+			consecBlanks[0] = 0;
+		} else {
+			consecBlanks[0]++;
+		}
+
+		if (validStep(ev1)) {
+			nextBlock[1].push(ev1);
+			consecBlanks[1] = 0;
+		} else {
+			consecBlanks[1]++;
+		}
+
+		if (validStep(ev2)) {
+			nextBlock[2].push(ev2);
+			consecBlanks[2] = 0;
+		} else {
+			consecBlanks[2]++;
+		}
+
+		if (
+			consecBlanks[0] > emptyLineClusterSize && validStep(rowArray[0][index + 1]) &&
+			!nextStepContainsSubstep
+		) {
+			output += createSimoBlocks(nextBlock, actorKeys);
+			reset();
+		}
+
+		if (
+			consecBlanks[1] > emptyLineClusterSize && validStep(rowArray[1][index + 1]) &&
+			!nextStepContainsSubstep
+		) {
+			output += createSimoBlocks(nextBlock, actorKeys);
+			reset();
+		}
+
+		if (
+			consecBlanks[2] > emptyLineClusterSize && validStep(rowArray[2][index + 1]) &&
+			!nextStepContainsSubstep
+		) {
+			output += createSimoBlocks(nextBlock, actorKeys);
+			reset();
+		}
+
+		const longest = nextBlock.reduce(
+			(prev, cur) => {
+				return cur.length > prev ? cur.length : prev;
+			},
+			0
+		);
+
+		if (longest > maxBlockLength && !nextStepContainsSubstep) {
+			output += createSimoBlocks(nextBlock, actorKeys);
+			reset();
+		}
+
+		index++;
+
+		// safety net until this is less kludgy
+		if (index > 10000) {
+			keepRowing = false;
+		}
+	}
+
+	if (nextBlock[0].length || nextBlock[1].length || nextBlock[2].length) {
+		output += createSimoBlocks(nextBlock, actorKeys);
+	}
+
+	return output;
+}
+
 let wasCheckboxList = false;
+let currentTaskTitles = [];
+function processParagraph(index, paragraphSourceText, colId) {
+	const $para = $(paragraphSourceText);
+	const images = [];
+	$para.find('img').each((i, e) => {
+		const $img = $(e);
+		const src = $img.attr('src').replace(/%20/g, ' ');
+		const srcParts = src.split('/');
+		const filename = srcParts[srcParts.length - 1];
+		const imagePaths = {
+			filename: filename,
+			projectImagePath: path.join(imagesDir, filename),
+			docxImagePath: path.join(htmlFileDir, src)
+		};
+		images.push(imagePaths);
+		if (fs.existsSync(imagePaths.projectImagePath)) {
+			fs.unlinkSync(imagePaths.projectImagePath); // remove image if it already exists
+		}
+		fs.copyFileSync(imagePaths.docxImagePath, imagePaths.projectImagePath);
+	});
 
-const taskHeader = `roles:
+	// todo is that backslash necessary?
+	// eslint-disable-next-line no-useless-escape
+	const titleRegex = /([A-Z \/&-]+)\((\d{2}:\d{2})\)/;
+	let step = $para.text()
+		.replace(/"/g, '\\"')
+		.replace(/&nbsp;/g, ' ')
+		.replace(/\n/g, ' ')
+		.replace(/\s+/g, ' ')
+		.replace(/EV1/g, '{{role:crewA}}')
+		.replace(/EV2/g, '{{role:crewB}}')
+		.replace(/Ö/g, '{{CHECK}}')
+		.replace(/¬/g, '{{LEFT}}')
+		.replace(/®/g, '{{RIGHT}}')
+		.replace(/à/g, '{{RIGHT}}')
+		.replace(/ß/g, '{{LEFT}}')
 
-  - name: crewA
-    description: TBD
-    duration:
-      minutes: 30
+	// FIXME
+	// FIXME ALL these replaces should use regex /thingToReplace/g to replace multiple occurences
+	// FIXME
 
-  - name: crewB
-    description: TBD
-    duration:
-      minutes: 30
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('� ', '...')
+	// .replace('�', '') <-- false ellipsis (...)
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('���', '')
 
-steps:
-`;
+		.replace(/”/g, '\\"')
+		.trim()
+		.replace(/^\d+\. /, '')
+		.trim();
+
+	const isCheckboxList = step.indexOf('q ') === 0 || step.indexOf('qq') === 0;
+	const titleMatch = step.match(titleRegex);
+
+	let paragraphYamlText = '';
+
+	if (step) {
+		if (isCheckboxList) {
+			step = step.slice(2);
+			if (!wasCheckboxList) {
+				paragraphYamlText += '          checkboxes:\n';
+			}
+			paragraphYamlText += `            - "${step}"\n`;
+			wasCheckboxList = true;
+		} else {
+			if (titleMatch && titleMatch[1].trim()) {
+				const duration = titleMatch[2].split(':').map((elem) => {
+					return parseInt(elem);
+				});
+				const title = titleMatch[1].trim();
+				const hours = duration[0];
+				const minutes = duration[1];
+				paragraphYamlText += `        - title: "${title}"\n`;
+				paragraphYamlText += '          duration:\n';
+				paragraphYamlText += `            hours: ${hours}\n`;
+				paragraphYamlText += `            minutes: ${minutes}\n`;
+				currentTaskTitles.push({
+					title: title,
+					hours: hours,
+					minutes: minutes,
+					colId: colId
+				});
+			} else {
+				paragraphYamlText += `        - step: "${step}"\n`;
+			}
+			wasCheckboxList = false;
+		}
+	}
+
+	if (images.length > 0) {
+		// if nothing above generated text, add any images as their own step
+		if (paragraphYamlText.trim() === '') {
+			paragraphYamlText += '        - images:\n';
+		} else {
+			paragraphYamlText += '          images:\n';
+		}
+		for (const img of images) {
+			paragraphYamlText += `          - path: "${img.filename}"\n`;
+		}
+	}
+
+	// if still no text even after images...
+	if (paragraphYamlText.trim() === '') {
+		emptyLines++;
+		// console.log('empty line');
+		paragraphYamlText = false;
+	} else {
+		nonEmptyLines++;
+		// console.log('line not empty');
+	}
+	return paragraphYamlText;
+}
+
+/**
+ *
+ *
+ * Start actions. Above and below this point should probably be separated into different files
+ *
+ *
+ */
+
+const tasks = [];
 
 const getTaskHeader = function(title, steps, crewAduration, crewBduration) {
 	let crewA = '', crewB = '';
@@ -112,9 +413,6 @@ ${steps}
 `;
 };
 
-let currentTaskTitles = [];
-
-const consecutiveLines = 0;
 $('body > div > div > table').each((t, table) => {
 
 	const colHeaders = [];
@@ -173,7 +471,6 @@ $('body > div > div > table').each((t, table) => {
 	});
 
 	if (taskText) {
-		let titleText;
 		let title;
 		let minutesByColId;
 		if (currentTaskTitles.length > 0) {
@@ -181,12 +478,12 @@ $('body > div > div > table').each((t, table) => {
 			const allTitles = [];
 			for (const subtask of currentTaskTitles) {
 				allTitles.push(subtask.title);
-				subtask.colId.split(' + ').forEach((cur, i) => {
+				for (const cur of subtask.colId.split(' + ')) {
 					if (!minutesByColId[cur]) {
 						minutesByColId[cur] = 0;
 					}
 					minutesByColId[cur] += subtask.hours * 60 + subtask.minutes;
-				});
+				}
 			}
 			title = allTitles.filter(arrayUnique).join(' & ');
 		}
@@ -275,281 +572,3 @@ for (let t = 0; t < tasks.length; t++) {
 fs.writeFileSync(path.join(procsDir, `${basename}.yml`), procedure);
 console.log(`empty lines = ${emptyLines}, non-empty = ${nonEmptyLines}`);
 console.log('complete!');
-
-function processParagraph(index, paragraphSourceText, colId) {
-	const $para = $(paragraphSourceText);
-	const images = [];
-	$para.find('img').each((i, e) => {
-		const $img = $(e);
-		const src = $img.attr('src').replace(/%20/g, ' ');
-		const srcParts = src.split('/');
-		const filename = srcParts[srcParts.length - 1];
-		const imagePaths = {
-			filename: filename,
-			projectImagePath: path.join(imagesDir, filename),
-			docxImagePath: path.join(htmlFileDir, src)
-		};
-		images.push(imagePaths);
-		if (fs.existsSync(imagePaths.projectImagePath)) {
-			fs.unlinkSync(imagePaths.projectImagePath); // remove image if it already exists
-		}
-		fs.copyFileSync(imagePaths.docxImagePath, imagePaths.projectImagePath);
-	});
-
-	const titleRegex = /([A-Z \/&-]+)\((\d{2}:\d{2})\)/;
-	let step = $para.text()
-		.replace(/"/g, '\\"')
-		.replace(/&nbsp;/g, ' ')
-		.replace(/\n/g, ' ')
-		.replace(/\s+/g, ' ')
-		.replace(/EV1/g, '{{role:crewA}}')
-		.replace(/EV2/g, '{{role:crewB}}')
-		.replace(/Ö/g, '{{CHECK}}')
-		.replace(/¬/g, '{{LEFT}}')
-		.replace(/®/g, '{{RIGHT}}')
-		.replace(/à/g, '{{RIGHT}}')
-		.replace(/ß/g, '{{LEFT}}')
-
-	// FIXME
-	// FIXME ALL these replaces should use regex /thingToReplace/g to replace multiple occurences
-	// FIXME
-
-	// .replace('�', '')
-	// .replace('�', '')
-	// .replace('�', '')
-	// .replace('�', '')
-	// .replace('� ', '...')
-	// .replace('�', '') <-- false ellipsis (...)
-	// .replace('�', '')
-	// .replace('�', '')
-	// .replace('���', '')
-
-		.replace(/”/g, '\\"')
-		.trim()
-		.replace(/^\d+\. /, '')
-		.trim();
-
-	const isCheckboxList = step.indexOf('q ') === 0 || step.indexOf('qq') === 0;
-	const titleMatch = step.match(titleRegex);
-
-	let paragraphYamlText = '';
-	if (step) {
-		if (isCheckboxList) {
-			step = step.slice(2);
-			if (!wasCheckboxList) {
-				paragraphYamlText += '          checkboxes:\n';
-			}
-			paragraphYamlText += `            - "${step}"\n`;
-			wasCheckboxList = true;
-		} else {
-			if (titleMatch && titleMatch[1].trim()) {
-				const duration = titleMatch[2].split(':').map((elem) => { return parseInt(elem); });
-				const title = titleMatch[1].trim();
-				const hours = duration[0];
-				const minutes = duration[1];
-				paragraphYamlText += `        - title: "${title}"\n`;
-				paragraphYamlText += '          duration:\n';
-				paragraphYamlText += `            hours: ${hours}\n`;
-				paragraphYamlText += `            minutes: ${minutes}\n`;
-				currentTaskTitles.push({
-					title: title,
-					hours: hours,
-					minutes: minutes,
-					colId: colId
-				});
-			} else {
-				paragraphYamlText += `        - step: "${step}"\n`;
-			}
-			wasCheckboxList = false;
-		}
-	}
-
-	if (images.length > 0) {
-		// if nothing above generated text, add any images as their own step
-		if (paragraphYamlText.trim() === '') {
-			paragraphYamlText += '        - images:\n';
-		} else {
-			paragraphYamlText += '          images:\n';
-		}
-		for (const img of images) {
-			paragraphYamlText += `          - path: "${img.filename}"\n`;
-		}
-	}
-
-	// if still no text even after images...
-	if (paragraphYamlText.trim() === '') {
-		emptyLines++;
-		// console.log('empty line');
-		paragraphYamlText = false;
-	} else {
-		nonEmptyLines++;
-		// console.log('line not empty');
-	}
-	return paragraphYamlText;
-}
-
-/**
- * Take an array comprising the three rows of the procedure, and process it into one or more 'simo'
- * blocks
- * @param  {[Array]} rowArray Array of the form [[col,0,steps], [col,1,steps], [col,2,steps]]
- * @return {[string]}         YAML text with at least one simo block
- */
-function createSimoBlocks(rowArray, actorKeys) {
-
-	// const actorKeys = [
-	// 	'      IV:\n',
-	// 	'      crewA:\n',
-	// 	'      crewB:\n'
-	// ];
-	let rowYamlText;
-
-	if (actorKeys.reduce((acc, cur) => { return cur.indexOf('+') > -1 ? true : acc; }, false)) {
-		var hasJointActors = true;
-	}
-
-	if (rowArray[0].length > 0 || rowArray[1].length > 0 || rowArray[2].length > 0) {
-		rowYamlText = '  - simo:\n\n';
-		for (let i = 0; i < rowArray.length; i++) {
-			if (rowArray[i].length > 0) {
-				let actorStepsAdded = '';
-				for (const line of rowArray[i]) {
-					if (line !== false) {
-						actorStepsAdded += line;
-					}
-				}
-				if (actorStepsAdded !== '') {
-					rowYamlText += actorKeys[i] + actorStepsAdded;
-				}
-			}
-		}
-	} else {
-		rowYamlText = '';
-	}
-
-	return rowYamlText;
-}
-
-function createSyncedSimoBlocks(rowArray, actorKeys) {
-
-	// Don't allow the simo block to have more than this many consecutive steps for a single actor,
-	// due to an issue with Word or the npm docx library. Rows are set not to break across a page,
-	// but if a row is bigger than one page it _must_ break across a page and currently it does not.
-	// Instead, it just disappears beyond the length of the page.
-	const maxBlockLength = 20;
-
-	// how many empty lines together to consider it a cluster requiring a sync point
-	const emptyLineClusterSize = 2;
-
-	actorKeys = actorKeys.map((val) => { return `      ${val}:\n`; });
-
-	let rowYamlText;
-
-	let index = 0;
-	const somethingelse = [0, 0, 0];
-	let keepRowing = true;
-
-	let output = '';
-
-	let consecBlanks,
-		nextBlock;
-
-	const validStep = function(step) {
-		return step && typeof step === 'string' && step.trim() !== '';
-	};
-
-	const stepIsSubstep = function(step) {
-		if (!step) {
-			return false;
-		}
-
-		// substeps have at least 6 space in front
-		return step.indexOf('          ') === 0;
-	};
-
-	const reset = function() {
-		consecBlanks = [0, 0, 0];
-		nextBlock = [[], [], []];
-	};
-	reset();
-
-	while (keepRowing) {
-		const iv = rowArray[0][index];
-		const ev1 = rowArray[1][index];
-		const ev2 = rowArray[2][index];
-
-		const current = [
-			rowArray[0][index],
-			rowArray[1][index],
-			rowArray[2][index]
-		];
-
-		const next = [
-			rowArray[0][index + 1],
-			rowArray[1][index + 1],
-			rowArray[2][index + 1]
-		];
-
-		let nextStepContainsSubstep;
-		if (stepIsSubstep(next[0]) || stepIsSubstep(next[1]) || stepIsSubstep(next[2])) {
-			nextStepContainsSubstep = true;
-		} else {
-			nextStepContainsSubstep = false;
-		}
-
-		if (validStep(iv)) {
-			nextBlock[0].push(iv);
-			consecBlanks[0] = 0;
-		} else {
-			consecBlanks[0]++;
-		}
-
-		if (validStep(ev1)) {
-			nextBlock[1].push(ev1);
-			consecBlanks[1] = 0;
-		} else {
-			consecBlanks[1]++;
-		}
-
-		if (validStep(ev2)) {
-			nextBlock[2].push(ev2);
-			consecBlanks[2] = 0;
-		} else {
-			consecBlanks[2]++;
-		}
-
-		if (consecBlanks[0] > emptyLineClusterSize && validStep(rowArray[0][index + 1]) && !nextStepContainsSubstep) {
-			output += createSimoBlocks(nextBlock, actorKeys);
-			reset();
-		}
-
-		if (consecBlanks[1] > emptyLineClusterSize && validStep(rowArray[1][index + 1]) && !nextStepContainsSubstep) {
-			output += createSimoBlocks(nextBlock, actorKeys);
-			reset();
-		}
-
-		if (consecBlanks[2] > emptyLineClusterSize && validStep(rowArray[2][index + 1]) && !nextStepContainsSubstep) {
-			output += createSimoBlocks(nextBlock, actorKeys);
-			reset();
-		}
-
-		const longest = nextBlock.reduce((prev, cur) => { return cur.length > prev ? cur.length : prev; }, 0);
-
-		if (longest > maxBlockLength && !nextStepContainsSubstep) {
-			output += createSimoBlocks(nextBlock, actorKeys);
-			reset();
-		}
-
-		index++;
-
-		// safety net until this is less kludgy
-		if (index > 10000) {
-			keepRowing = false;
-		}
-	}
-
-	if (nextBlock[0].length || nextBlock[1].length || nextBlock[2].length) {
-		output += createSimoBlocks(nextBlock, actorKeys);
-	}
-
-	return output;
-}
