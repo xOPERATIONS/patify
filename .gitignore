@@ -1,3 +1,7 @@
 
 .DS_Store
 node_modules/
+.xml
+**/tasks/
+**/procedures/
+**/source-procs/

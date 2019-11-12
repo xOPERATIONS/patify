@@ -41,17 +41,17 @@ if (!fs.existsSync(htmlFile)) {
 }
 
 const arrayUnique = (value, index, self) => {
-	return self.indexOf(value) === index
-}
+	return self.indexOf(value) === index;
+};
 
 let emptyLines = 0;
 let nonEmptyLines = 0;
 
 const cheerio = require('cheerio');
 try {
-	console.log("Loading HTML");
+	console.log('Loading HTML');
 	var $ = cheerio.load(fs.readFileSync(process.argv[2]));
-	console.log("HTML loaded");
+	console.log('HTML loaded');
 } catch (err) {
 	throw new Error(err);
 }
@@ -112,14 +112,13 @@ ${steps}
 `;
 };
 
-
 let currentTaskTitles = [];
 
-let consecutiveLines = 0;
-$("body > div > div > table").each((t,table) => {
+const consecutiveLines = 0;
+$('body > div > div > table').each((t, table) => {
 
 	const colHeaders = [];
-	$(table).children("thead").children("tr").children('td').each((i,e) => {
+	$(table).children('thead').children('tr').children('td').each((i, e) => {
 		colHeaders.push($(e).text());
 	});
 
@@ -134,7 +133,7 @@ $("body > div > div > table").each((t,table) => {
 		colIds = [];
 		for (const text of colHeaders) {
 			if (text.indexOf('IV') > -1) {
-				colIds.push('IV')
+				colIds.push('IV');
 			} else if (text.indexOf('EV1') > -1) {
 				colIds.push('crewA');
 			} else if (text.indexOf('EV2') > -1) {
@@ -146,13 +145,13 @@ $("body > div > div > table").each((t,table) => {
 	}
 
 	let taskText = '';
-	$(table).children("tbody").children("tr").each((r,row) => {
-		let rowText = [[],[],[]];
-		let actorKeys = [];
+	$(table).children('tbody').children('tr').each((r, row) => {
+		const rowText = [[], [], []];
+		const actorKeys = [];
 
-		$(row).children("td").each((c,col) => {
-			let $td = $(col);
-			let colspan = $td.attr('colspan');
+		$(row).children('td').each((c, col) => {
+			const $td = $(col);
+			const colspan = $td.attr('colspan');
 			let colId;
 			if (colspan && colspan > 1) {
 				colId = colIds.slice(c, c + colspan).join(' + ');
@@ -165,7 +164,7 @@ $("body > div > div > table").each((t,table) => {
 				console.error(`bad column: ${c}`);
 				console.error($(row).text());
 			}
-			$(col).children('p').each((p,para) => {
+			$(col).children('p').each((p, para) => {
 				rowText[c].push(processParagraph(p, para, colId));
 			});
 		});
@@ -179,7 +178,7 @@ $("body > div > div > table").each((t,table) => {
 		let minutesByColId;
 		if (currentTaskTitles.length > 0) {
 			minutesByColId = {};
-			let allTitles = [];
+			const allTitles = [];
 			for (const subtask of currentTaskTitles) {
 				allTitles.push(subtask.title);
 				subtask.colId.split(' + ').forEach((cur, i) => {
@@ -228,7 +227,6 @@ columns:
 tasks:
 `;
 
-
 const taskColors = [
 	'#D6D6D6',
 	'#F0F8FF',
@@ -261,7 +259,7 @@ for (let t = 0; t < tasks.length; t++) {
 	}
 
 	// todo fixme use filenameify or whatever it's called
-	const taskFileName = `${basename}-${tasks[t].title.replace(/\//g, '-').replace(/\\/g, '-')}.yml`
+	const taskFileName = `${basename}-${tasks[t].title.replace(/\//g, '-').replace(/\\/g, '-')}.yml`;
 	const taskFilePath = path.join(tasksDir, taskFileName);
 	fs.writeFileSync(taskFilePath, tasks[t].fileContent);
 	procedure += `
@@ -276,19 +274,17 @@ for (let t = 0; t < tasks.length; t++) {
 
 fs.writeFileSync(path.join(procsDir, `${basename}.yml`), procedure);
 console.log(`empty lines = ${emptyLines}, non-empty = ${nonEmptyLines}`);
-console.log("complete!");
-
-
+console.log('complete!');
 
 function processParagraph(index, paragraphSourceText, colId) {
-	let $para = $(paragraphSourceText);
-	let images = [];
-	$para.find('img').each((i,e) => {
-		let $img = $(e);
-		let src = $img.attr('src').replace(/%20/g, ' ');
-		let srcParts = src.split('/');
-		let filename = srcParts[srcParts.length - 1];
-		let imagePaths = {
+	const $para = $(paragraphSourceText);
+	const images = [];
+	$para.find('img').each((i, e) => {
+		const $img = $(e);
+		const src = $img.attr('src').replace(/%20/g, ' ');
+		const srcParts = src.split('/');
+		const filename = srcParts[srcParts.length - 1];
+		const imagePaths = {
 			filename: filename,
 			projectImagePath: path.join(imagesDir, filename),
 			docxImagePath: path.join(htmlFileDir, src)
@@ -299,7 +295,6 @@ function processParagraph(index, paragraphSourceText, colId) {
 		}
 		fs.copyFileSync(imagePaths.docxImagePath, imagePaths.projectImagePath);
 	});
-
 
 	const titleRegex = /([A-Z \/&-]+)\((\d{2}:\d{2})\)/;
 	let step = $para.text()
@@ -315,46 +310,45 @@ function processParagraph(index, paragraphSourceText, colId) {
 		.replace(/à/g, '{{RIGHT}}')
 		.replace(/ß/g, '{{LEFT}}')
 
-		// FIXME
-		// FIXME ALL these replaces should use regex /thingToReplace/g to replace multiple occurences
-		// FIXME
+	// FIXME
+	// FIXME ALL these replaces should use regex /thingToReplace/g to replace multiple occurences
+	// FIXME
 
-
-		// .replace('�', '')
-		// .replace('�', '')
-		// .replace('�', '')
-		// .replace('�', '')
-		// .replace('� ', '...')
-		// .replace('�', '') <-- false ellipsis (...)
-		// .replace('�', '')
-		// .replace('�', '')
-		// .replace('���', '')
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('� ', '...')
+	// .replace('�', '') <-- false ellipsis (...)
+	// .replace('�', '')
+	// .replace('�', '')
+	// .replace('���', '')
 
 		.replace(/”/g, '\\"')
 		.trim()
-		.replace(/^\d+\. /,'')
+		.replace(/^\d+\. /, '')
 		.trim();
 
-	let isCheckboxList = step.indexOf("q ") === 0 || step.indexOf("qq") === 0;
-	let titleMatch = step.match(titleRegex);
+	const isCheckboxList = step.indexOf('q ') === 0 || step.indexOf('qq') === 0;
+	const titleMatch = step.match(titleRegex);
 
 	let paragraphYamlText = '';
 	if (step) {
 		if (isCheckboxList) {
 			step = step.slice(2);
 			if (!wasCheckboxList) {
-				paragraphYamlText += `          checkboxes:\n`;
+				paragraphYamlText += '          checkboxes:\n';
 			}
 			paragraphYamlText += `            - "${step}"\n`;
 			wasCheckboxList = true;
 		} else {
 			if (titleMatch && titleMatch[1].trim()) {
-				let duration = titleMatch[2].split(':').map((elem) => { return parseInt(elem); });
-				let title = titleMatch[1].trim();
-				let hours = duration[0];
-				let minutes = duration[1];
+				const duration = titleMatch[2].split(':').map((elem) => { return parseInt(elem); });
+				const title = titleMatch[1].trim();
+				const hours = duration[0];
+				const minutes = duration[1];
 				paragraphYamlText += `        - title: "${title}"\n`;
-				paragraphYamlText += `          duration:\n`;
+				paragraphYamlText += '          duration:\n';
 				paragraphYamlText += `            hours: ${hours}\n`;
 				paragraphYamlText += `            minutes: ${minutes}\n`;
 				currentTaskTitles.push({
@@ -373,9 +367,9 @@ function processParagraph(index, paragraphSourceText, colId) {
 	if (images.length > 0) {
 		// if nothing above generated text, add any images as their own step
 		if (paragraphYamlText.trim() === '') {
-			paragraphYamlText += `        - images:\n`;
+			paragraphYamlText += '        - images:\n';
 		} else {
-			paragraphYamlText += `          images:\n`;
+			paragraphYamlText += '          images:\n';
 		}
 		for (const img of images) {
 			paragraphYamlText += `          - path: "${img.filename}"\n`;
@@ -409,7 +403,7 @@ function createSimoBlocks(rowArray, actorKeys) {
 	// ];
 	let rowYamlText;
 
-	if (actorKeys.reduce((acc,cur) => { return cur.indexOf('+') > -1 ? true : acc; }, false)) {
+	if (actorKeys.reduce((acc, cur) => { return cur.indexOf('+') > -1 ? true : acc; }, false)) {
 		var hasJointActors = true;
 	}
 
@@ -435,7 +429,6 @@ function createSimoBlocks(rowArray, actorKeys) {
 	return rowYamlText;
 }
 
-
 function createSyncedSimoBlocks(rowArray, actorKeys) {
 
 	// Don't allow the simo block to have more than this many consecutive steps for a single actor,
@@ -452,7 +445,7 @@ function createSyncedSimoBlocks(rowArray, actorKeys) {
 	let rowYamlText;
 
 	let index = 0;
-	let somethingelse = [0, 0, 0];
+	const somethingelse = [0, 0, 0];
 	let keepRowing = true;
 
 	let output = '';
@@ -539,7 +532,7 @@ function createSyncedSimoBlocks(rowArray, actorKeys) {
 			reset();
 		}
 
-		let longest = nextBlock.reduce((prev,cur) => { return cur.length > prev ? cur.length : prev }, 0);
+		const longest = nextBlock.reduce((prev, cur) => { return cur.length > prev ? cur.length : prev; }, 0);
 
 		if (longest > maxBlockLength && !nextStepContainsSubstep) {
 			output += createSimoBlocks(nextBlock, actorKeys);
