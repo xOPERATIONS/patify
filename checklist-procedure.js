@@ -152,7 +152,7 @@ procedure_number: ${procNumber}\n`;
         //Add Tools/Parts Materials
 
         if (tagType == "STEP") {
-            //FIXME indent var not passing into stepCheck function, so var remains undefined.
+            //FIXME indent var not passing into stepCheck function, so var remains
             var indent = 0;
             $(element).each(function stepCheck(step, indent){
                 $(step).children().each(function(index, element, indent){
