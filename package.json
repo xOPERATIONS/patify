@@ -12,6 +12,9 @@
   "author": "James Montalvo",
   "license": "MIT",
   "dependencies": {
-    "cheerio": "^1.0.0-rc.3"
+    "cheerio": "^1.0.0-rc.3",
+    "jsdom": "^15.2.1",
+    "xml2js": "^0.4.22",
+    "xmldom": "^0.1.27"
   }
 }
