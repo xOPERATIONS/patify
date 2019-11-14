@@ -81,23 +81,24 @@ try {
 // `;
 
 // TODO create cleanup function to escape ", replace symbols
-//.replace("Microsoft", "W3Schools");
+// .replace("Microsoft", "W3Schools");
 
 function stepCheck(step) {
 	var stepYaml = '';
 
 	$(step).children().each(function(index, element) {
 		var instruction;
-
 		var tagType = $(element).prop('tagName');
+		var itemid;
+
 		if (tagType.toLowerCase() === 'steptitle') {
-			var text = $(element).find('> text').text().trim().replace(/\s+/g, ' ').replace('"', '\"');
-			var locationInfo = $(element).find('locationInfo').text().trim().replace(/\s+/g, ' ').replace(/\"/g, '\"');
+			var text = $(element).find('> text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
+			var locationInfo = $(element).find('locationInfo').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
 			// todo find and replace all symbol/center tags to {{templates}}
 			instruction = $(element).find('instruction').text().trim().replace(/\s+/g, ' ');
 			instruction = instruction.replace(/"/g, '\\"');
 			// What is navInfo used for?
-			var navInfo = $(element).find('navInfo').text().trim().replace(/\s+/g, ' ').replace('"', '\"');
+			var navInfo = $(element).find('navInfo').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
 
 			stepYaml += `${indent}- title: "${text}"\n`;
 			if (locationInfo !== '') {
@@ -111,18 +112,18 @@ function stepCheck(step) {
 			}
 
 		} else if (tagType.toLowerCase() === 'clarifyinginfo') {
-			var type = $(element).attr('infoType').replace('"', '\"');
+			var type = $(element).attr('infoType').replace('"', '\\"');
 			// Not sure if we need this one.
 			// var isNumbered = $(element).attr('isnumbered');
-			var itemid = $(element).attr('itemId').replace('"', '\"');
+			itemid = $(element).attr('itemId').replace('"', '\\"');
 			// Might need to pull html for content to get symbols
-			var content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\"');
+			var content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
 
 			stepYaml += `${indent}- ${type}: "${content}"\n${indent}  itemid: ${itemid}\n`;
 		} else if (tagType.toLowerCase() === 'stepcontent') {
 			instruction = $(element).find('instruction').text().trim().replace(/\s+/g, ' ');
 			instruction = instruction.replace(/"/g, '\\"');
-			var itemid = $(element).attr('itemId').replace('"', '\"');
+			itemid = $(element).attr('itemId').replace('"', '\\"');
 			if (instruction !== '') {
 				stepYaml += `${indent}  - step: "${instruction}"\n${indent}    itemid: ${itemid}\n`;
 
@@ -230,10 +231,10 @@ function parseTag(tagQuery) {
 
 }
 
-//FIXME TESTING SYMBOL TAG SELECTING
-$("Symbol:parent").each(function(element) {
-	var name_test = element.innerHTML
-	console.log(name_test);
+// FIXME TESTING SYMBOL TAG SELECTING
+$('Symbol:parent').each(function(element) {
+	var nameTest = element.innerHTML;
+	console.log(nameTest);
 });
 
 var procedure = parseTag('schemaversion');
