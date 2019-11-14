@@ -232,8 +232,8 @@ function parseTag(tagQuery) {
 }
 
 // FIXME TESTING SYMBOL TAG SELECTING
-$('Symbol:parent').each(function(element) {
-	var nameTest = element.innerHTML;
+$('Symbol').each(function(index, element) {
+	var nameTest = $(element).attr('name');
 	console.log(nameTest);
 });
 
