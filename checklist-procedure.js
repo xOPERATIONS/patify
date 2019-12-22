@@ -87,90 +87,67 @@ tasks:
 // .replace("Microsoft", "W3Schools");
 
 function stepCheck(step) {
-	var stepYaml = '';
+	let stepYaml = '';
 
-	$(step).children().each(function(index, element) {
-		var instruction;
-		var tagType = $(element).prop('tagName');
-		var itemid;
-
-		if (tagType.toLowerCase() === 'steptitle') {
-			var text = $(element).find('> text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-			var locationInfo = $(element).find('locationInfo').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
-			// todo find and replace all symbol/center tags to {{templates}}
-
-			// $('Symbol').each(function(index, element) {
-			// 	let name = $(element).attr('name');
-			// 	if (name == 'nbsp') {
-			// 		$(element).replaceWith(`<text>   </text>`);
-			// 	} else {
-			// 		$(element).replaceWith(`<text>{{${name}}}</text>`);
-			// 	}
-
-			// });
-
-			$('VerifyCallout').each(function(index, element) {
-				const verifyType = $(element).attr('verifyType');
-				const instructionText = $(element).text().trim();
-				$(element).replaceWith(`<text>{{${verifyType}}} ${instructionText}</text>`);
+	$(step).children('steptitle').each(function(index, element) {
+		indent = '    ';
+		// Steptitle consists of locationinfo, stepnumber, centername, choicereference, symbol, text, instruction, navinfo
+		// todo reference other procedures to see application of locationinfo, centername, choicereference, symbol, instruction, navinfo
+		// If title is direct child of steptitle tag then that is the step title
+		const title = $(element).children('text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
+		let instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
+		// We won't use stepnumber to generate the actual procedure but am tracking for now
+		const stepnumber = $(element).children('stepnumber').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
+		if (title) {
+			stepYaml += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n`;
+			let sibilingCount = 0;
+			$(element).siblings().each(function(index, element) {
+				sibilingCount += 1;
 			});
-			instruction = $(element).find('instruction').children().text().trim().replace(/\s+/g, ' ');
-			// instruction = instruction.replace(/"/g, '\\"');
-			// What is navInfo used for?
-			var navInfo = $(element).find('navInfo').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-
-			stepYaml += `${indent}- title: "${text}"\n`;
-			if (locationInfo !== '') {
-				stepYaml += `${indent}  locationInfo: "${locationInfo}"\n`;
-			}
-			if (instruction !== '') {
-				instruction = instruction.replace(/"/g, '\\"');
-				stepYaml += `${indent}- step: "${instruction}"\n`;
-			}
-			if (navInfo !== '') {
-				stepYaml += `${indent}  navInfo: "${navInfo}"\n`;
+			if (sibilingCount > 0) {
+				stepYaml += `${indent}  substeps:\n`;
+				indent += '    ';
 			}
 
-		} else if (tagType.toLowerCase() === 'clarifyinginfo') {
-			var type = $(element).attr('infoType').replace('"', '\\"');
-			// Not sure if we need this one.
-			// var isNumbered = $(element).attr('isnumbered');
-			// itemid = $(element).attr('itemId').replace('"', '\\"');
-			// Might need to pull html for content to get symbols
-			var content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-
-			stepYaml += `${indent}- ${type}: "${content}"\n`;
-		} else if (tagType.toLowerCase() === 'stepcontent') {
-			instruction = $(element).find('instruction').text().trim().replace(/\s+/g, ' ');
-			instruction = instruction.replace(/"/g, '\\"');
-			// itemid = $(element).attr('itemId').replace('"', '\\"');
-			if (instruction !== '') {
-				stepYaml += `${indent}- step: "${instruction}"\n`;
-			}
-
-			// CHECK FOR IMAGES
-			// $(element).children().each(function(index, element) {
-			// 	var tagType = $(element).prop('tagName');
-
-			// 	if (tagType.toLowerCase() === 'image') {
-			// 		var alt = $(element).find('imagereference').attr('alt');
-			// 		var height = $(element).find('imagereference').attr('height');
-			// 		var width = $(element).find('imagereference').attr('width');
-			// 		var source = $(element).find('imagereference').attr('source');
-			// 		var text = $(element).find('imagetitle > text').text().trim().replace(/\s+/g, ' ');
-
-			// 		stepYaml += `${indent}  - image: "${source}"\n${indent}    text: "${text}"\n${indent}    width: ${width}\n${indent}    height: ${height}\n${indent}    alt: "${alt}"\n`;
-			// 	}
-			// });
-
-		} else if (tagType.toLowerCase() === 'step') {
-			stepYaml += `${indent}- substeps:\n`;
+		} else if (instruction) {
+			// todo figure out how to handle each of these scenarios
+			// Instruction consists of <PhysicalDeviceCallout>, <CmdCallout> VerifyCallout>, <InputCallout>,
+			// <AutomationCallout>, <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>, <ConditionalStatement>,
+			// <LoopStatement>, <CenterOnGo>, <RecordStatement>, <CalculateStatement>, <Stow>
 			indent += '    ';
-			stepYaml += stepCheck(element);
-			indent = '    ';
-
+			stepYaml += `${indent}- step: |\n${indent}     ${instruction}\n`;
 		}
-		// todo fix this hard coding of six spaces
+
+		$(element).siblings().each(function(index, element) {
+			const tagType = $(element).prop('tagName');
+
+			// notes, cautions, warnings
+			if (tagType.toLowerCase() === 'clarifyinginfo') {
+				const ncwType = $(element).attr('infoType').replace('"', '\\"');
+				const content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
+				stepYaml += `${indent}- ${ncwType}: "${content}"\n`;
+			} else if (tagType.toLowerCase() === 'stepcontent') {
+				// StepContent consists of: offnominalblock, alternateblock, groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
+				// StepContent has attributes: itemID, checkBoxes, spacingAbove
+				instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
+				if (instruction) {
+					stepYaml += `${indent}     ${instruction}\n`;
+				}
+
+				$(element).children('image').each(function(index, element) {
+					const alt = $(element).find('imagereference').attr('alt');
+					const height = $(element).find('imagereference').attr('height');
+					const width = $(element).find('imagereference').attr('width');
+					const source = $(element).find('imagereference').attr('source');
+					const text = $(element).find('imagetitle > text').text().trim().replace(/\s+/g, ' ');
+					stepYaml += `${indent}- images:\n${indent}  - path: "${source}"\n${indent}    text: "${text}"\n${indent}    width: ${width}\n${indent}    height: ${height}\n${indent}    alt: "${alt}"\n`;
+				});
+			} else if (tagType.toLowerCase() === 'step') {
+				// this is the begining of a substep
+				stepYaml += stepCheck(element);
+			}
+
+		});
 
 	});
 
@@ -260,11 +237,11 @@ function parseTag(tagQuery) {
 						// console.log(toolType);
 
 					}
-				// 	else if (toolType.toLowerCase() === 'container1') {
+					// 	else if (toolType.toLowerCase() === 'container1') {
 
-				// 	}
+					// 	}
 
-				// });
+				});
 
 			});
 		} else if (tagType.toLowerCase() === 'step') {
