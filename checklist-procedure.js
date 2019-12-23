@@ -20,8 +20,9 @@ const tasksDir = path.join(projectDir, 'tasks'); // should be called activityDir
 const procsDir = path.join(projectDir, 'procedures');
 const imagesDir = path.join(projectDir, 'images');
 
-var indent = '    ';
-var outPut = '';
+const indent = '    ';
+let outPut = '';
+let stepYaml = '';
 
 if (!fs.existsSync(tasksDir)) {
 	fs.mkdirSync(tasksDir);
@@ -86,76 +87,93 @@ tasks:
 // TODO create cleanup function to escape ", replace symbols
 // .replace("Microsoft", "W3Schools");
 
-function stepCheck(step) {
-	let stepYaml = '';
+function getImages(element, indent) {
+	let imageYaml = '';
+	$(element).children('image').each(function(index, element) {
+		const alt = $(element).find('imagereference').attr('alt');
+		const height = $(element).find('imagereference').attr('height');
+		const width = $(element).find('imagereference').attr('width');
+		const source = $(element).find('imagereference').attr('source');
+		const text = $(element).find('imagetitle > text').text().trim().replace(/\s+/g, ' ');
+		imageYaml += `${indent}- images:\n${indent}  - path: "${source}"\n${indent}    text: "${text}"\n${indent}    width: ${width}\n${indent}    height: ${height}\n${indent}    alt: "${alt}"\n`;
+	});
+	return imageYaml;
+}
 
-	$(step).children('steptitle').each(function(index, element) {
-		indent = '    ';
-		// Steptitle consists of locationinfo, stepnumber, centername, choicereference, symbol, text, instruction, navinfo
-		// todo reference other procedures to see application of locationinfo, centername, choicereference, symbol, instruction, navinfo
-		// If title is direct child of steptitle tag then that is the step title
-		const title = $(element).children('text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-		let instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
-		// We won't use stepnumber to generate the actual procedure but am tracking for now
-		const stepnumber = $(element).children('stepnumber').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
+function getSubStep(element, indent) {
+	let outPut = '';
+	const tagType = $(element).prop('tagName');
+	// Steptitle consists of locationinfo, stepnumber, centername
+	// choicereference, symbol, text, instruction, navinfo
+	// todo reference other procedures for application of locationinfo,
+	// todo centername, choicereference, symbol, instruction, navinfo
+	// If title is direct child of steptitle tag then that is the step title
+	// We won't use stepnumber to generate the actual procedure but am tracking for now
+
+	if (tagType.toLowerCase() === 'steptitle') {
+		const title = $(element).children('text').text().trim().replace(/\s+/g, ' ');
+		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
+
 		if (title) {
-			stepYaml += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n`;
-			let sibilingCount = 0;
-			$(element).siblings().each(function(index, element) {
-				sibilingCount += 1;
-			});
-			if (sibilingCount > 0) {
-				stepYaml += `${indent}  substeps:\n`;
-				indent += '    ';
-			}
-
+			outPut += `${indent}- title: |\n${indent}     ${title}\n`;
 		} else if (instruction) {
 			// todo figure out how to handle each of these scenarios
-			// Instruction consists of <PhysicalDeviceCallout>, <CmdCallout> VerifyCallout>, <InputCallout>,
-			// <AutomationCallout>, <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>, <ConditionalStatement>,
-			// <LoopStatement>, <CenterOnGo>, <RecordStatement>, <CalculateStatement>, <Stow>
-			indent += '    ';
-			stepYaml += `${indent}- step: |\n${indent}     ${instruction}\n`;
+			// Instruction includes <PhysicalDeviceCallout>, <CmdCallout>,
+			// <VerifyCallout>, <InputCallout> <AutomationCallout>,
+			// <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>,
+			// <ConditionalStatement>, <LoopStatement>, <CenterOnGo>,
+			// <RecordStatement>, <CalculateStatement>, <Stow>
+			outPut += `${indent}- step: |\n${indent}     ${instruction}\n`;
+		}
+	}
+
+	// notes, cautions, warnings
+	if (tagType.toLowerCase() === 'clarifyinginfo') {
+		const ncwType = $(element).attr('infoType').replace('"', '\\"');
+		outPut += `${indent}- ${ncwType}:\n`;
+		$(element).children('infotext').each(function(index, element) {
+			const content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
+			outPut += `${indent}    - "${content}"\n`;
+		});
+	} else if (tagType.toLowerCase() === 'stepcontent') {
+		// StepContent consists of: offnominalblock, alternateblock
+		// groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
+		// StepContent has attributes: itemID, checkBoxes, spacingAbove
+		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
+		if (instruction) {
+			outPut += `${indent}     ${instruction}\n`;
 		}
 
-		$(element).siblings().each(function(index, element) {
-			const tagType = $(element).prop('tagName');
+		outPut += getImages(element, indent);
+	} else if (tagType.toLowerCase() === 'step') {
+		// this is the begining of a substep
+		$(element).children().each(function(index, element) {
+			outPut += getSubStep(element, indent);
+		});
 
-			// notes, cautions, warnings
-			if (tagType.toLowerCase() === 'clarifyinginfo') {
-				const ncwType = $(element).attr('infoType').replace('"', '\\"');
-				const content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-				stepYaml += `${indent}- ${ncwType}: "${content}"\n`;
-			} else if (tagType.toLowerCase() === 'stepcontent') {
-				// StepContent consists of: offnominalblock, alternateblock, groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
-				// StepContent has attributes: itemID, checkBoxes, spacingAbove
-				instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
-				if (instruction) {
-					stepYaml += `${indent}     ${instruction}\n`;
-				}
+	}
+	return outPut;
 
-				$(element).children('image').each(function(index, element) {
-					const alt = $(element).find('imagereference').attr('alt');
-					const height = $(element).find('imagereference').attr('height');
-					const width = $(element).find('imagereference').attr('width');
-					const source = $(element).find('imagereference').attr('source');
-					const text = $(element).find('imagetitle > text').text().trim().replace(/\s+/g, ' ');
-					stepYaml += `${indent}- images:\n${indent}  - path: "${source}"\n${indent}    text: "${text}"\n${indent}    width: ${width}\n${indent}    height: ${height}\n${indent}    alt: "${alt}"\n`;
-				});
-			} else if (tagType.toLowerCase() === 'step') {
-				// this is the begining of a substep
-				stepYaml += stepCheck(element);
-			}
+}
 
+function stepCheck(procedure, indent) {
+	$(procedure).children('steptitle').each(function(index, majorStep) {
+
+		const title = $(majorStep).children('text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
+		const stepnumber = $(majorStep).children('stepnumber').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
+
+		stepYaml += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n${indent}  substeps:\n`;
+		indent += '    ';
+		$(majorStep).siblings().each(function(index, element) {
+			stepYaml += getSubStep(element, indent);
 		});
 
 	});
-
 	return stepYaml;
 }
 
 // function formatMetaData(meta) {
-// 	return `metaData:
+// return `metaData:
 //   procType: "${meta.procType}"
 //   status: "${meta.status}"
 //   date: "${meta.date}"
@@ -180,23 +198,24 @@ function parseTag(tagQuery) {
 			content = $(element).text().trim().replace(/\s+/g, ' ');
 			outPut = `authoringTool: "${content}"\n`;
 		} else if (tagType.toLowerCase() === 'metadata') {
-			var procType = $(element).attr('proctype');
-			var status = $(element).attr('status');
-			var date = $(element).find('date').text().trim().replace(/\s+/g, ' ');
-			var uniqueId = $(element).find('uniqueid').text().trim().replace(/\s+/g, ' ');
-			var book = $(element).find('book').text().trim().replace(/\s+/g, ' ');
-			var applicability = $(element).find('applicability').text().trim().replace(/\s+/g, ' ');
-			var version = $(element).find('version').text().trim().replace(/\s+/g, ' ');
-			var procCode = $(element).find('proccode').text().trim().replace(/\s+/g, ' ');
+			// var procType = $(element).attr('proctype');
+			// var status = $(element).attr('status');
+			// var date = $(element).find('date').text().trim().replace(/\s+/g, ' ');
+			// var uniqueId = $(element).find('uniqueid').text().trim().replace(/\s+/g, ' ');
+			// var book = $(element).find('book').text().trim().replace(/\s+/g, ' ');
+			// eslint-disable-next-line max-len
+			// var applicability = $(element).find('applicability').text().trim().replace(/\s+/g, ' ');
+			// var version = $(element).find('version').text().trim().replace(/\s+/g, ' ');
+			// var procCode = $(element).find('proccode').text().trim().replace(/\s+/g, ' ');
 			// outPut = formatMetaData({
-			// 	procType: procType,
-			// 	status: status,
-			// 	date: date,
-			// 	uniqueId: uniqueId,
-			// 	book: book,
-			// 	applicability: applicability,
-			// 	version: version,
-			// 	procCode: procCode
+			// procType: procType,
+			// status: status,
+			// date: date,
+			// uniqueId: uniqueId,
+			// book: book,
+			// applicability: applicability,
+			// version: version,
+			// procCode: procCode
 			// });
 		} else if (tagType.toLowerCase() === 'proctitle') {
 			var title = $(element).find('text').first().text().trim().replace(/\s+/g, ' ');
@@ -226,26 +245,26 @@ function parseTag(tagQuery) {
 				outPut += (`${tagType}:  |\n`);
 				$(element).children().each(function(index, element) {
 					var toolType = $(element).prop('tagName');
-					console.log(toolType);
+					// console.log(toolType);
 					if (toolType.toLowerCase() === 'toolsitem') {
-						const toolFields = ['toolsitemname', 'partnumber', 'serialnumber', 'barcode', 'quantity', 'comment', 'gotostep'];
+						// eslint-disable-next-line max-len
+						// const toolFields = ['toolsitemname', 'partnumber', 'serialnumber', 'barcode', 'quantity', 'comment', 'gotostep'];
 						// todo print out list of tools and containers showing all fields and tree
-						for (const field in toolFields) {
-							const content = $(element).find(toolFields[field]).text().trim().replace(/\s+/g, ' ');
-							// console.log(content);
-						}
+						// for (const field in toolFields) {
+						//  const content = $(element).find(toolFields[field]).text().trim();
+						// }
 						// console.log(toolType);
 
 					}
-					// 	else if (toolType.toLowerCase() === 'container1') {
+					// else if (toolType.toLowerCase() === 'container1') {
 
-					// 	}
+					// }
 
 				});
 
 			});
 		} else if (tagType.toLowerCase() === 'step') {
-			outPut += stepCheck(element);
+			outPut = stepCheck(element, indent);
 		}
 
 	});
@@ -256,19 +275,30 @@ function parseTag(tagQuery) {
 
 // FIXME TESTING SYMBOL TAG SELECTING
 // $('Symbol').each(function(index, element) {
-// 	let name = $(element).attr('name');
-// 	if (name == 'nbsp') {
-// 		$(element).replaceWith(`<text>   </text>`);
-// 	} else {
-// 		$(element).replaceWith(`<text>{{${name}}}</text>`);
-// 	}
+// let name = $(element).attr('name');
+// if (name == 'nbsp') {
+//  $(element).replaceWith(`<text>   </text>`);
+// } else {
+//  $(element).replaceWith(`<text>{{${name}}}</text>`);
+// }
 
 // });
 
-// $('VerifyCallout').each(function(index, element) {
-// 	let verifyType = $(element).attr('verifyType');
-// 	$(element).replaceWith(`<text>{{${verifyType}}}</text>`);
-// });
+$('VerifyCallout').each(function(index, element) {
+	const verifyType = $(element).attr('verifyType').toUpperCase();
+	const verifyParent = $(element).parent();
+	$(verifyParent).prepend(`<text>{{${verifyType}}}</text>`);
+});
+
+$('Symbol').each(function(index, element) {
+	const symbolType = $(element).attr('name').toUpperCase();
+	$(element).prepend(`<text>{{${symbolType}}}</text>`);
+});
+
+$('verifyoperator').each(function(index, element) {
+	const symbolType = $(element).attr('operator').toUpperCase();
+	$(element).prepend(`<text>{{${symbolType}}}</text>`);
+});
 
 var procedure = parseTag('schemaversion');
 procedure += parseTag('authoringtool');
