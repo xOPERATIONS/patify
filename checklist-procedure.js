@@ -19,6 +19,7 @@ const projectDir = path.dirname(ipvFileDir);
 const tasksDir = path.join(projectDir, 'tasks'); // should be called activityDir need to fix when merging
 const procsDir = path.join(projectDir, 'procedures');
 const imagesDir = path.join(projectDir, 'images');
+const odfSymbols = require('./odfSymbolMap.js');
 
 const indent = '    ';
 let outPut = '';
@@ -291,8 +292,9 @@ $('VerifyCallout').each(function(index, element) {
 });
 
 $('Symbol').each(function(index, element) {
-	const symbolType = $(element).attr('name').toUpperCase();
-	$(element).prepend(`<text>{{${symbolType}}}</text>`);
+	const symbolType = $(element).attr('name');
+	const maestroSymbol = odfSymbols.odfToMaestro(symbolType);
+	$(element).prepend(`<text>${maestroSymbol}</text>`);
 });
 
 $('verifyoperator').each(function(index, element) {
