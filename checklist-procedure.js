@@ -173,17 +173,80 @@ function stepCheck(procedure, indent) {
 	return stepYaml;
 }
 
-// function formatMetaData(meta) {
-// return `metaData:
-//   procType: "${meta.procType}"
-//   status: "${meta.status}"
-//   date: "${meta.date}"
-//   uniqueID: "${meta.uniqueId}"
-//   book: "${meta.book}"
-//   applicability: "${meta.applicability}"
-//   version: "${meta.version}"
-//   proceCode: "${meta.procCode}"\n`;
-// }
+function getProcHeader() {
+	let output = '';
+	output += `schemaVersion: ${$('schemaversion').text().trim()}\n`;
+	output += `authoringTool: ${$('authoringtool').text().trim()}\n`;
+	output += '- metaData:\n';
+	output += `  procType: ${$('metadata').attr('proctype')}\n`;
+	output += `  status: ${$('metadata').attr('status')}\n`;
+	output += `  date: ${$('metadata > date').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  uniqueid: ${$('metadata > uniqueid').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  book: ${$('metadata > book').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  applicability: ${$('metadata > applicability').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  version: ${$('metadata > version').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  procCode: ${$('metadata > proccode').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `procedure_number: ${$('proctitle > procnumber').text().trim()}\n`;
+	output += `procedure_name: ${$('proctitle > text').text().trim()}\n`;
+	output += `procedure_objective:  |\n  ${$('procedureobjective').text().trim()}\n`;
+	output += getItemizedLists(); // gets duration, crew, location data
+	output += getToolsPartsMarterials();
+	output += `columns:
+	- key: IV
+	  actors: "*"
+
+	tasks:
+	  - file: ${basename}.yml
+		roles:
+		  IV1: IV
+	`;
+	return output;
+}
+
+function getItemizedLists() {
+	let outPut = '';
+	$('itemizedlist').each(function(index, element) {
+		outPut += `- ${$(element).find('listtitle').text().trim().toLowerCase().replace(/\s+/g, ' ').replace(':', '').replace(' ', '_')}:\n`;
+		$(element).children('para').each(function(index, element) {
+			outPut += `  line: |\n    ${$(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
+		});
+
+	});
+
+	return outPut;
+}
+
+function getToolsPartsMarterials() {
+	let outPut = '';
+	const sectionList = ['parts', 'materials', 'tools'];
+	sectionList.forEach((element) => {
+		outPut += `- ${element}:\n`;
+		outPut += parseTools(element, '  ');
+
+	});
+
+	return outPut;
+}
+
+function parseTools(element, indent) {
+	$(element).children().each(function(index, element) {
+		if ($(element).prop('tagName').toLowerCase() === 'toolsitem') {
+			outPut += `${indent}- tool:\n`;
+			outPut += `${indent}    name: ${$(element).children('toolsitemname').text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
+			outPut += `${indent}    partNumber: ${$(element).children('partnumber').text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
+		} else if ($(element).prop('tagName').toLowerCase().includes('containeritem')) {
+			return;
+		} else if ($(element).prop('tagName').toLowerCase().includes('container')) {
+			outPut += `${indent}- container:\n`;
+			outPut += `${indent}    name: ${$(element).children('containeritem').text().trim()}\n`;
+		}
+
+		parseTools(element, indent + '  ');
+	});
+
+	return outPut;
+
+}
 
 function parseTag(tagQuery) {
 	outPut = '';
@@ -191,55 +254,8 @@ function parseTag(tagQuery) {
 	$(`ChecklistProcedure > ${tagQuery}`).each(function(index, element) {
 		var content;
 		var tagType = $(element).prop('tagName');
-
-		if (tagType.toLowerCase() === 'schemaversion') {
-			content = $(element).text().trim().replace(/\s+/g, ' ');
-			outPut = `schemaVersion: ${content}\n`;
-		} else if (tagType.toLowerCase() === 'authoringtool') {
-			content = $(element).text().trim().replace(/\s+/g, ' ');
-			outPut = `authoringTool: "${content}"\n`;
-		} else if (tagType.toLowerCase() === 'metadata') {
-			// var procType = $(element).attr('proctype');
-			// var status = $(element).attr('status');
-			// var date = $(element).find('date').text().trim().replace(/\s+/g, ' ');
-			// var uniqueId = $(element).find('uniqueid').text().trim().replace(/\s+/g, ' ');
-			// var book = $(element).find('book').text().trim().replace(/\s+/g, ' ');
-			// eslint-disable-next-line max-len
-			// var applicability = $(element).find('applicability').text().trim().replace(/\s+/g, ' ');
-			// var version = $(element).find('version').text().trim().replace(/\s+/g, ' ');
-			// var procCode = $(element).find('proccode').text().trim().replace(/\s+/g, ' ');
-			// outPut = formatMetaData({
-			// procType: procType,
-			// status: status,
-			// date: date,
-			// uniqueId: uniqueId,
-			// book: book,
-			// applicability: applicability,
-			// version: version,
-			// procCode: procCode
-			// });
-		} else if (tagType.toLowerCase() === 'proctitle') {
-			var title = $(element).find('text').first().text().trim().replace(/\s+/g, ' ');
-			var procNumber = $(element).find('procnumber').text().trim().replace(/\s+/g, ' ');
-			outPut = `procedure_name: "${title}"\nprocedure_number: ${procNumber}\n`;
-		} else if (tagType.toLowerCase() === 'timerequirement') {
-			content = $(element).html().trim().replace(/\s+/g, ' ');
-			outPut = `timeRequirement: "${content}"\n`;
-			// NEED TO FIND OUT IF THIS IS USED AND WHAT THE
-		} else if (tagType.toLowerCase() === 'procedureobjective') {
-			content = $(element).text().trim().replace(/\s+/g, ' ');
-			outPut = `procedure_objective:  |\n  ${content}\n`;
-		} else if (tagType.toLowerCase() === 'itemizedlist') {
-			var label = $(element).find('listtitle').text().trim().replace(/\s+/g, ' ');
-			label = label.toLowerCase().replace(':', '').replace(' ', '_');
-			outPut += (`${label}:  |\n`);
-			$(element).find('Para').each(function(index, element) {
-				var content = $(element).html().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-				outPut += '  ' + content + '\n';
-			});
-
 		// Add Tools/Parts Materials
-		} else if (tagType.toLowerCase() === 'toolspartsmaterials') {
+		if (tagType.toLowerCase() === 'toolspartsmaterials') {
 			$(element).children().each(function(index, element) {
 				var tagType = $(element).prop('tagName');
 				// console.log(tagType);
@@ -302,16 +318,8 @@ $('verifyoperator').each(function(index, element) {
 	$(element).prepend(`<text>{{${symbolType}}}</text>`);
 });
 
-var procedure = parseTag('schemaversion');
-procedure += parseTag('authoringtool');
-procedure += parseTag('metadata');
-procedure += parseTag('ProcTitle');
-procedure += parseTag('timerequirement');
-procedure += parseTag('procedureobjective');
-procedure += parseTag('itemizedlist');
-procedure += parseTag('toolspartsmaterials');
-procedure += procedureFooter;
-fs.writeFileSync(path.join(procsDir, `${basename}.yml`), procedure);
+// write procedure file
+fs.writeFileSync(path.join(procsDir, `${basename}.yml`), `${getProcHeader()}`);
 var task = taskHeader;
 task += parseTag('step');
 fs.writeFileSync(path.join(tasksDir, `${basename}.yml`), task);
