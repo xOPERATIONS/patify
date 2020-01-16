@@ -62,6 +62,11 @@ try {
 // TODO create cleanup function to escape ", replace symbols
 // .replace("Microsoft", "W3Schools");
 
+/**
+ * Returns cleaned up text from given object
+ * @param {Object} input object to obtain clean text from
+ * @return {string}      sanatized text
+ */
 function sanatizeInput(input) {
 	return input.text().trim()
 		.replace(/\s+/g, ' ')
@@ -83,6 +88,11 @@ function compareTag(subject, comparison, option = 'tagName') {
 	}
 }
 
+/**
+ * parse trhough itemized list tags (location, duration, crew)
+ * @return {string}  yaml markup for location, duration, crew,
+ *                   ref procedures
+ */
 function getItemizedLists() {
 	let outPut = '';
 	$('itemizedlist').each(function(index, element) {
@@ -96,6 +106,13 @@ function getItemizedLists() {
 	return outPut;
 }
 
+/**
+ *
+ * @param {Object} element tools, parts, or materials object
+ * @param {string} indent  current yaml indent for output
+ * @param {string} outPut  yaml output
+ * @return {string}        yaml output
+ */
 function parseTools(element, indent, outPut = '') {
 	$(element).children().each(function(index, element) {
 		if (compareTag(element, 'toolsitem')) {
@@ -115,6 +132,10 @@ function parseTools(element, indent, outPut = '') {
 
 }
 
+/**
+ * Runs parseTools for tools, parts, materials section
+ * @return {string}     yaml output
+ */
 function getToolsPartsMarterials() {
 	let outPut = '';
 	const sectionList = ['parts', 'materials', 'tools'];
@@ -128,6 +149,12 @@ function getToolsPartsMarterials() {
 	return outPut;
 }
 
+/**
+ * retrieves yaml output for an image
+ * @param {Object} element  xml tag with image in it
+ * @param {string} indent   current yaml indent
+ * @return {string}         yaml output
+ */
 function getImages(element, indent) {
 	let imageYaml = '';
 	$(element).children('image').each(function(index, element) {
@@ -141,6 +168,10 @@ function getImages(element, indent) {
 	return imageYaml;
 }
 
+/**
+ * retrieves header content of procedure
+ * @return {string}  procedure header yaml
+ */
 function getProcHeader() {
 	let output = '';
 	output += `schemaVersion: ${$('schemaversion').text().trim()}\n`;
@@ -232,8 +263,8 @@ function getSubStep(element, indent) {
 }
 
 /**
- *  @return {string} iterates over each top level step tag
- *                   for each tag it calls getSubStep()
+ * iterates over each top level step tag for each tag it calls getSubStep()
+ * @return {string}  yaml output
  */
 function getSteps() {
 	let outPut = '';
@@ -270,17 +301,6 @@ steps:
 
 	return outPut;
 }
-
-// FIXME TESTING SYMBOL TAG SELECTING
-// $('Symbol').each(function(index, element) {
-// let name = $(element).attr('name');
-// if (name == 'nbsp') {
-//  $(element).replaceWith(`<text>   </text>`);
-// } else {
-//  $(element).replaceWith(`<text>{{${name}}}</text>`);
-// }
-
-// });
 
 $('VerifyCallout').each(function(index, element) {
 	const verifyType = $(element).attr('verifyType').toUpperCase();
