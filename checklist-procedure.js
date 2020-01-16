@@ -64,46 +64,10 @@ try {
 // TODO create cleanup function to escape ", replace symbols
 // .replace("Microsoft", "W3Schools");
 
-function getImages(element, indent) {
-	let imageYaml = '';
-	$(element).children('image').each(function(index, element) {
-		const alt = $(element).find('imagereference').attr('alt');
-		const height = $(element).find('imagereference').attr('height');
-		const width = $(element).find('imagereference').attr('width');
-		const source = $(element).find('imagereference').attr('source');
-		const text = $(element).find('imagetitle > text').text().trim().replace(/\s+/g, ' ');
-		imageYaml += `${indent}- images:\n${indent}  - path: "${source}"\n${indent}    text: "${text}"\n${indent}    width: ${width}\n${indent}    height: ${height}\n${indent}    alt: "${alt}"\n`;
-	});
-	return imageYaml;
-}
-
-function getProcHeader() {
-	let output = '';
-	output += `schemaVersion: ${$('schemaversion').text().trim()}\n`;
-	output += `authoringTool: ${$('authoringtool').text().trim()}\n`;
-	output += 'metaData:\n';
-	output += `  procType: ${$('metadata').attr('proctype')}\n`;
-	output += `  status: ${$('metadata').attr('status')}\n`;
-	output += `  date: ${$('metadata > date').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  uniqueid: ${$('metadata > uniqueid').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  book: ${$('metadata > book').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  applicability: ${$('metadata > applicability').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  version: ${$('metadata > version').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  procCode: ${$('metadata > proccode').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `procedure_number: ${$('proctitle > procnumber').text().trim()}\n`;
-	output += `procedure_name: ${$('proctitle > text').text().trim()}\n`;
-	output += `procedure_objective:  |\n  ${$('procedureobjective').text().trim()}\n`;
-	output += getItemizedLists(); // gets duration, crew, location data
-	output += getToolsPartsMarterials();
-	output += `columns:
-  - key: IV
-    actors: "*"
-
-tasks:
-  - file: ${basename}.yml
-    roles:
-      IV1: IV`;
-	return output;
+function sanatizeInput(text) {
+	return text.trim()
+		.replace(/\s+/g, ' ')
+		.replace('"', '\\"');
 }
 
 function getItemizedLists() {
@@ -113,19 +77,6 @@ function getItemizedLists() {
 		$(element).children('para').each(function(index, element) {
 			outPut += `  - |\n    ${$(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
 		});
-
-	});
-
-	return outPut;
-}
-
-function getToolsPartsMarterials() {
-	let outPut = '';
-	const sectionList = ['parts', 'materials', 'tools'];
-	sectionList.forEach((element) => {
-
-		outPut += `${element}:\n`;
-		outPut += parseTools(element, '  ');
 
 	});
 
@@ -152,7 +103,141 @@ function parseTools(element, indent) {
 
 }
 
-function stepCheck() {
+function getToolsPartsMarterials() {
+	let outPut = '';
+	const sectionList = ['parts', 'materials', 'tools'];
+	sectionList.forEach((element) => {
+
+		outPut += `${element}:\n`;
+		outPut += parseTools(element, '  ');
+
+	});
+
+	return outPut;
+}
+
+function getImages(element, indent) {
+	let imageYaml = '';
+	$(element).children('image').each(function(index, element) {
+		const alt = $(element).find('imagereference').attr('alt');
+		const height = $(element).find('imagereference').attr('height');
+		const width = $(element).find('imagereference').attr('width');
+		const source = $(element).find('imagereference').attr('source');
+		const text = sanatizeInput($(element).find('imagetitle > text').text());
+		imageYaml += `${indent}  - images:\n${indent}    - path: "${source}"\n${indent}      text: "${text}"\n${indent}      width: ${width}\n${indent}      height: ${height}\n${indent}      alt: "${alt}"\n`;
+	});
+	return imageYaml;
+}
+
+function getProcHeader() {
+	let output = '';
+	output += `schemaVersion: ${$('schemaversion').text().trim()}\n`;
+	output += `authoringTool: ${$('authoringtool').text().trim()}\n`;
+	output += 'metaData:\n';
+	output += `  procType: ${$('metadata').attr('proctype')}\n`;
+	output += `  status: ${$('metadata').attr('status')}\n`;
+	output += `  date: ${sanatizeInput($('metadata > date').text())}\n`;
+	output += `  uniqueid: ${sanatizeInput($('metadata > uniqueid').text())}\n`;
+	output += `  book: ${$('metadata > book').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  applicability: ${$('metadata > applicability').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  version: ${$('metadata > version').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  procCode: ${$('metadata > proccode').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `procedure_number: ${$('proctitle > procnumber').text().trim()}\n`;
+	output += `procedure_name: ${$('proctitle > text').text().trim()}\n`;
+	output += `procedure_objective:  |\n  ${$('procedureobjective').text().trim()}\n`;
+	output += getItemizedLists(); // gets duration, crew, location data
+	output += getToolsPartsMarterials();
+	output += `columns:
+  - key: IV
+    actors: "*"
+
+tasks:
+  - file: ${basename}.yml
+    roles:
+      IV1: IV`;
+	return output;
+}
+
+function getSubStep(element, indent) {
+	let outPut = '';
+	const tagType = $(element)
+		.prop('tagName')
+		.toLowerCase();
+	// Steptitle consists of locationinfo, stepnumber, centername
+	// choicereference, symbol, text, instruction, navinfo
+	// todo reference other procedures for application of locationinfo,
+	// todo centername, choicereference, symbol, instruction, navinfo
+	// If title is direct child of steptitle tag then that is the step title
+	// We won't use stepnumber to generate the actual procedure but am tracking for now
+
+	if (tagType === 'steptitle') {
+		// const title = $(element)
+		// .children('text').text().trim()
+		// // !FIXME consistently clean text
+		// .replace(/\s+/g, ' ');
+		// const instruction = $(element)
+		// .children('instruction')
+		// .text().trim().replace(/\s+/g, ' ');
+
+		// if (title) {
+		// outPut += `${indent}  - title: |\n${indent}     ${title}\n`;
+		// } else if (instruction) {
+		// // todo figure out how to handle each of these scenarios
+		// // Instruction includes <PhysicalDeviceCallout>, <CmdCallout>,
+		// // <VerifyCallout>, <InputCallout> <AutomationCallout>,
+		// // <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>,
+		// // <ConditionalStatement>, <LoopStatement>, <CenterOnGo>,
+		// // <RecordStatement>, <CalculateStatement>, <Stow>
+		// outPut += `${indent}  - step: |\n${indent}     ${instruction}\n`;
+
+	} else if (tagType === 'clarifyinginfo') {
+		const ncwType = sanatizeInput(
+			$(element).attr('infoType')
+		);
+		outPut += `${indent}  - ${ncwType}:\n`;
+		$(element).children('infotext').each(function(index, element) {
+			const content = sanatizeInput(
+				$(element).text()
+			);
+			outPut += `${indent}    - "${content}"\n`;
+		});
+	} else if (tagType === 'stepcontent') {
+		// StepContent consists of: offnominalblock, alternateblock
+		// groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
+		// StepContent has attributes: itemID, checkBoxes, spacingAbove
+		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
+		if (instruction) {
+			outPut += `${indent}    - step: ${instruction}\n`;
+		}
+
+		outPut += getImages(element, indent);
+	} else if (tagType === 'step') {
+		const titleElement = $(element).children('stepTitle');
+
+		const stepTitle = sanatizeInput(
+			$(titleElement)
+				.find('instruction')
+				.text()
+		);
+
+		const stepNumber = sanatizeInput(
+			$(titleElement)
+				.children('stepnumber')
+				.text()
+		);
+
+		outPut += `${indent}  - title: "${stepTitle}"\n${indent}    stepnumber: ${stepNumber}\n${indent}    substeps:\n`;
+		// this is the begining of a substep
+		$(element).children().each(function(index, element) {
+			outPut += getSubStep(element, indent + '  ');
+		});
+
+	}
+	return outPut;
+
+}
+
+function getSteps() {
 	let outPut = '';
 	outPut += `title: ${basename}
 roles:
@@ -169,12 +254,18 @@ steps:
 
 		$(element).children('steptitle').each(function(index, majorStep) {
 
-			const title = $(majorStep).children('text').text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-			const stepnumber = $(majorStep).children('stepnumber').text().trim().replace(/\s+/g, ' ').replace(/"/g, '\\"');
+			const title = $(majorStep)
+				.children('text').text().trim()
+				.replace(/\s+/g, ' ')
+				.replace('"', '\\"');
+			const stepnumber = $(majorStep)
+				.children('stepnumber').text().trim()
+				.replace(/\s+/g, ' ')
+				.replace(/"/g, '\\"');
 
 			outPut += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n${indent}  substeps:\n`;
 			$(majorStep).siblings().each(function(index, element) {
-				outPut += getSubStep(element, indent + '  ');
+				outPut += getSubStep(element, indent);
 			});
 
 		});
@@ -182,62 +273,6 @@ steps:
 	});
 
 	return outPut;
-}
-
-function getSubStep(element, indent) {
-	let outPut = '';
-	const tagType = $(element).prop('tagName');
-	// Steptitle consists of locationinfo, stepnumber, centername
-	// choicereference, symbol, text, instruction, navinfo
-	// todo reference other procedures for application of locationinfo,
-	// todo centername, choicereference, symbol, instruction, navinfo
-	// If title is direct child of steptitle tag then that is the step title
-	// We won't use stepnumber to generate the actual procedure but am tracking for now
-
-	if (tagType.toLowerCase() === 'steptitle') {
-		const title = $(element).children('text').text().trim().replace(/\s+/g, ' ');
-		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
-
-		if (title) {
-			outPut += `${indent}- title: |\n${indent}     ${title}\n`;
-		} else if (instruction) {
-			// todo figure out how to handle each of these scenarios
-			// Instruction includes <PhysicalDeviceCallout>, <CmdCallout>,
-			// <VerifyCallout>, <InputCallout> <AutomationCallout>,
-			// <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>,
-			// <ConditionalStatement>, <LoopStatement>, <CenterOnGo>,
-			// <RecordStatement>, <CalculateStatement>, <Stow>
-			outPut += `${indent}- step: |\n${indent}     ${instruction}\n`;
-		}
-	}
-
-	// notes, cautions, warnings
-	if (tagType.toLowerCase() === 'clarifyinginfo') {
-		const ncwType = $(element).attr('infoType').replace('"', '\\"');
-		outPut += `${indent}- ${ncwType}:\n`;
-		$(element).children('infotext').each(function(index, element) {
-			const content = $(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"');
-			outPut += `${indent}    - "${content}"\n`;
-		});
-	} else if (tagType.toLowerCase() === 'stepcontent') {
-		// StepContent consists of: offnominalblock, alternateblock
-		// groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
-		// StepContent has attributes: itemID, checkBoxes, spacingAbove
-		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
-		if (instruction) {
-			outPut += `${indent}     ${instruction}\n`;
-		}
-
-		outPut += getImages(element, indent);
-	} else if (tagType.toLowerCase() === 'step') {
-		// this is the begining of a substep
-		$(element).children().each(function(index, element) {
-			outPut += getSubStep(element, indent + '  ');
-		});
-
-	}
-	return outPut;
-
 }
 
 // FIXME TESTING SYMBOL TAG SELECTING
@@ -271,4 +306,4 @@ $('verifyoperator').each(function(index, element) {
 // write procedure file
 fs.writeFileSync(path.join(procsDir, `${basename}.yml`), `${getProcHeader()}`);
 // write task file
-fs.writeFileSync(path.join(tasksDir, `${basename}.yml`), `${stepCheck()}`);
+fs.writeFileSync(path.join(tasksDir, `${basename}.yml`), `${getSteps()}`);

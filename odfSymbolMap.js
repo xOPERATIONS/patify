@@ -29,7 +29,7 @@ module.exports = {
 	/**
      *
      * @param {string} maestroText maestro symbol
-     * @return                     odf symbol equivalent
+     * @return {string}            odf symbol equivalent
      */
 	maestroToOdf: function(maestroText) {
 		return maestroToOdfMap[maestroText];
