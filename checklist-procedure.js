@@ -21,8 +21,6 @@ const procsDir = path.join(projectDir, 'procedures');
 const imagesDir = path.join(projectDir, 'images');
 const odfSymbols = require('./odfSymbolMap.js');
 
-let outPut = '';
-
 if (!fs.existsSync(tasksDir)) {
 	fs.mkdirSync(tasksDir);
 }
@@ -64,18 +62,33 @@ try {
 // TODO create cleanup function to escape ", replace symbols
 // .replace("Microsoft", "W3Schools");
 
-function sanatizeInput(text) {
-	return text.trim()
+function sanatizeInput(input) {
+	return input.text().trim()
 		.replace(/\s+/g, ' ')
 		.replace('"', '\\"');
+}
+
+/**
+ *
+ * @param {Object} subject      object with tag that you want to compare
+ * @param {string} comparison   string to compare with
+ * @param {string} option       how to compare: tagName or includes tagName
+ * @return {boolean}
+ */
+function compareTag(subject, comparison, option = 'tagName') {
+	if (option === 'tagName') {
+		return $(subject).prop('tagName').toLowerCase() === comparison;
+	} else if (option === 'includes') {
+		return $(subject).prop('tagName').toLowerCase().includes(comparison);
+	}
 }
 
 function getItemizedLists() {
 	let outPut = '';
 	$('itemizedlist').each(function(index, element) {
-		outPut += `${$(element).find('listtitle').text().trim().toLowerCase().replace(/\s+/g, ' ').replace(':', '').replace(' ', '_')}:\n`;
+		outPut += `${sanatizeInput($(element).find('listtitle')).replace(':', '').replace(' ', '_')}:\n`;
 		$(element).children('para').each(function(index, element) {
-			outPut += `  - |\n    ${$(element).text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
+			outPut += `  - |\n    ${sanatizeInput($(element))}\n`;
 		});
 
 	});
@@ -83,20 +96,19 @@ function getItemizedLists() {
 	return outPut;
 }
 
-function parseTools(element, indent) {
+function parseTools(element, indent, outPut = '') {
 	$(element).children().each(function(index, element) {
-		if ($(element).prop('tagName').toLowerCase() === 'toolsitem') {
-			// outPut += `${indent}tool:\n`;
-			outPut += `${indent}- toolName: ${$(element).children('toolsitemname').text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}\n`;
-			outPut += `${indent}  partNumber: "${$(element).children('partnumber').text().trim().replace(/\s+/g, ' ').replace('"', '\\"')}"\n`;
-		} else if ($(element).prop('tagName').toLowerCase().includes('containeritem')) {
+		if (compareTag(element, 'toolsitem')) {
+			outPut += `${indent}- toolName: ${sanatizeInput($(element).children('toolsitemname'))}\n`;
+			outPut += `${indent}  partNumber: "${sanatizeInput($(element).children('partnumber'))}"\n`;
+		} else if (compareTag(element, 'containeritem', 'includes')) {
 			return;
-		} else if ($(element).prop('tagName').toLowerCase().includes('container')) {
+		} else if (compareTag(element, 'container', 'includes')) {
 			outPut += `${indent}- containerName: ${$(element).children('containeritem').text().trim()}\n`;
 			outPut += `${indent}  containerContents:\n`;
 		}
 
-		parseTools(element, indent + '  ');
+		parseTools(element, indent + '  ', outPut);
 	});
 
 	return outPut;
@@ -123,7 +135,7 @@ function getImages(element, indent) {
 		const height = $(element).find('imagereference').attr('height');
 		const width = $(element).find('imagereference').attr('width');
 		const source = $(element).find('imagereference').attr('source');
-		const text = sanatizeInput($(element).find('imagetitle > text').text());
+		const text = sanatizeInput($(element).find('imagetitle > text'));
 		imageYaml += `${indent}    - images:\n${indent}    - path: "${source}"\n${indent}      text: "${text}"\n${indent}      width: ${width}\n${indent}      height: ${height}\n${indent}      alt: "${alt}"\n`;
 	});
 	return imageYaml;
@@ -136,12 +148,12 @@ function getProcHeader() {
 	output += 'metaData:\n';
 	output += `  procType: ${$('metadata').attr('proctype')}\n`;
 	output += `  status: ${$('metadata').attr('status')}\n`;
-	output += `  date: ${sanatizeInput($('metadata > date').text())}\n`;
-	output += `  uniqueid: ${sanatizeInput($('metadata > uniqueid').text())}\n`;
-	output += `  book: ${$('metadata > book').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  applicability: ${$('metadata > applicability').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  version: ${$('metadata > version').text().trim().replace(/\s+/g, ' ')}\n`;
-	output += `  procCode: ${$('metadata > proccode').text().trim().replace(/\s+/g, ' ')}\n`;
+	output += `  date: ${sanatizeInput($('metadata > date'))}\n`;
+	output += `  uniqueid: ${sanatizeInput($('metadata > uniqueid'))}\n`;
+	output += `  book: ${sanatizeInput($('metadata > book'))}\n`;
+	output += `  applicability: ${sanatizeInput($('metadata > applicability'))}\n`;
+	output += `  version: ${sanatizeInput($('metadata > version'))}\n`;
+	output += `  procCode: ${sanatizeInput($('metadata > proccode'))}\n`;
 	output += `procedure_number: ${$('proctitle > procnumber').text().trim()}\n`;
 	output += `procedure_name: ${$('proctitle > text').text().trim()}\n`;
 	output += `procedure_objective:  |\n  ${$('procedureobjective').text().trim()}\n`;
@@ -177,41 +189,19 @@ function getSubStep(element, indent) {
 	// We won't use stepnumber to generate the actual procedure but am tracking for now
 
 	if (tagType === 'steptitle') {
-		// const title = $(element)
-		// .children('text').text().trim()
-		// // !FIXME consistently clean text
-		// .replace(/\s+/g, ' ');
-		// const instruction = $(element)
-		// .children('instruction')
-		// .text().trim().replace(/\s+/g, ' ');
-
-		// if (title) {
-		// outPut += `${indent}  - title: |\n${indent}     ${title}\n`;
-		// } else if (instruction) {
-		// // todo figure out how to handle each of these scenarios
-		// // Instruction includes <PhysicalDeviceCallout>, <CmdCallout>,
-		// // <VerifyCallout>, <InputCallout> <AutomationCallout>,
-		// // <SelectCallout>, <GotoStep>, <ClearText>, <ProcedureDeparture>,
-		// // <ConditionalStatement>, <LoopStatement>, <CenterOnGo>,
-		// // <RecordStatement>, <CalculateStatement>, <Stow>
-		// outPut += `${indent}  - step: |\n${indent}     ${instruction}\n`;
-
+		// doesn't do anything, title is handled when a step tag is found
 	} else if (tagType === 'clarifyinginfo') {
-		const ncwType = sanatizeInput(
-			$(element).attr('infoType')
-		);
+		const ncwType = $(element).attr('infoType');
 		outPut += `${indent}    - ${ncwType}:\n`;
 		$(element).children('infotext').each(function(index, element) {
-			const content = sanatizeInput(
-				$(element).text()
-			);
+			const content = sanatizeInput($(element));
 			outPut += `${indent}      - "${content}"\n`;
 		});
 	} else if (tagType === 'stepcontent') {
 		// StepContent consists of: offnominalblock, alternateblock
 		// groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
 		// StepContent has attributes: itemID, checkBoxes, spacingAbove
-		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
+		const instruction = sanatizeInput($(element).children('instruction'));
 		if (instruction) {
 			outPut += `${indent}    - step: | \n${indent}       "${instruction}"\n`;
 		}
@@ -223,13 +213,11 @@ function getSubStep(element, indent) {
 		const stepTitle = sanatizeInput(
 			$(titleElement)
 				.find('instruction')
-				.text()
 		);
 
 		const stepNumber = sanatizeInput(
 			$(titleElement)
 				.children('stepnumber')
-				.text()
 		);
 
 		outPut += `${indent}    - title: | \n${indent}       "${stepTitle}"\n${indent}      stepnumber: ${stepNumber}\n${indent}      substeps:\n`;
@@ -264,14 +252,12 @@ steps:
 
 		$(element).children('steptitle').each(function(index, majorStep) {
 
-			const title = $(majorStep)
-				.children('text').text().trim()
-				.replace(/\s+/g, ' ')
-				.replace('"', '\\"');
-			const stepnumber = $(majorStep)
-				.children('stepnumber').text().trim()
-				.replace(/\s+/g, ' ')
-				.replace(/"/g, '\\"');
+			const title = sanatizeInput(
+				$(majorStep).children('text')
+			);
+			const stepnumber = sanatizeInput(
+				$(majorStep).children('stepnumber')
+			);
 
 			outPut += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n${indent}  substeps:\n`;
 			$(majorStep).siblings().each(function(index, element) {
