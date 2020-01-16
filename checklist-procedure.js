@@ -124,7 +124,7 @@ function getImages(element, indent) {
 		const width = $(element).find('imagereference').attr('width');
 		const source = $(element).find('imagereference').attr('source');
 		const text = sanatizeInput($(element).find('imagetitle > text').text());
-		imageYaml += `${indent}  - images:\n${indent}    - path: "${source}"\n${indent}      text: "${text}"\n${indent}      width: ${width}\n${indent}      height: ${height}\n${indent}      alt: "${alt}"\n`;
+		imageYaml += `${indent}    - images:\n${indent}    - path: "${source}"\n${indent}      text: "${text}"\n${indent}      width: ${width}\n${indent}      height: ${height}\n${indent}      alt: "${alt}"\n`;
 	});
 	return imageYaml;
 }
@@ -158,6 +158,12 @@ tasks:
 	return output;
 }
 
+/**
+ *
+ * @param {Object} element parent xml tag
+ * @param {string} indent  current indent for correct yaml formating
+ * @return {string}        yaml text of substep
+ */
 function getSubStep(element, indent) {
 	let outPut = '';
 	const tagType = $(element)
@@ -194,12 +200,12 @@ function getSubStep(element, indent) {
 		const ncwType = sanatizeInput(
 			$(element).attr('infoType')
 		);
-		outPut += `${indent}  - ${ncwType}:\n`;
+		outPut += `${indent}    - ${ncwType}:\n`;
 		$(element).children('infotext').each(function(index, element) {
 			const content = sanatizeInput(
 				$(element).text()
 			);
-			outPut += `${indent}    - "${content}"\n`;
+			outPut += `${indent}      - "${content}"\n`;
 		});
 	} else if (tagType === 'stepcontent') {
 		// StepContent consists of: offnominalblock, alternateblock
@@ -207,7 +213,7 @@ function getSubStep(element, indent) {
 		// StepContent has attributes: itemID, checkBoxes, spacingAbove
 		const instruction = $(element).children('instruction').text().trim().replace(/\s+/g, ' ');
 		if (instruction) {
-			outPut += `${indent}    - step: ${instruction}\n`;
+			outPut += `${indent}    - step: | \n${indent}       "${instruction}"\n`;
 		}
 
 		outPut += getImages(element, indent);
@@ -226,7 +232,7 @@ function getSubStep(element, indent) {
 				.text()
 		);
 
-		outPut += `${indent}  - title: "${stepTitle}"\n${indent}    stepnumber: ${stepNumber}\n${indent}    substeps:\n`;
+		outPut += `${indent}    - title: | \n${indent}       "${stepTitle}"\n${indent}      stepnumber: ${stepNumber}\n${indent}      substeps:\n`;
 		// this is the begining of a substep
 		$(element).children().each(function(index, element) {
 			outPut += getSubStep(element, indent + '  ');
@@ -237,13 +243,17 @@ function getSubStep(element, indent) {
 
 }
 
+/**
+ *  @return {string} iterates over each top level step tag
+ *                   for each tag it calls getSubStep()
+ */
 function getSteps() {
 	let outPut = '';
 	outPut += `title: ${basename}
 roles:
   - name: IV1
-	duration:
-	minutes: 150
+    duration:
+      minutes: 150
 steps:
   - IV:\n`;
 
