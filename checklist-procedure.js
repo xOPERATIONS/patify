@@ -59,9 +59,6 @@ try {
 	throw new Error(err);
 }
 
-// TODO create cleanup function to escape ", replace symbols
-// .replace("Microsoft", "W3Schools");
-
 /**
  * Returns cleaned up text from given object
  * @param {Object} input object to obtain clean text from
@@ -69,8 +66,7 @@ try {
  */
 function sanatizeInput(input) {
 	return input.text().trim()
-		.replace(/\s+/g, ' ')
-		.replace('"', '\\"');
+		.replace(/\s+/g, ' ');
 }
 
 /**
@@ -96,7 +92,13 @@ function compareTag(subject, comparison, option = 'tagName') {
 function getItemizedLists() {
 	let outPut = '';
 	$('itemizedlist').each(function(index, element) {
-		outPut += `${sanatizeInput($(element).find('listtitle')).replace(':', '').replace(' ', '_')}:\n`;
+		outPut += `${
+			sanatizeInput(
+				$(element).find('listtitle')
+			)
+				.replace(':', '')
+				.replace(' ', '_')
+		}:\n`;
 		$(element).children('para').each(function(index, element) {
 			outPut += `  - |\n    ${sanatizeInput($(element))}\n`;
 		});
@@ -163,7 +165,7 @@ function getImages(element, indent) {
 		const width = $(element).find('imagereference').attr('width');
 		const source = $(element).find('imagereference').attr('source');
 		const text = sanatizeInput($(element).find('imagetitle > text'));
-		imageYaml += `${indent}    - images:\n${indent}    - path: "${source}"\n${indent}      text: "${text}"\n${indent}      width: ${width}\n${indent}      height: ${height}\n${indent}      alt: "${alt}"\n`;
+		imageYaml += `${indent}    - images:\n${indent}      - path: "${source}"\n${indent}        text: "${text}"\n${indent}        width: ${width}\n${indent}        height: ${height}\n${indent}        alt: "${alt}"\n`;
 	});
 	return imageYaml;
 }
@@ -251,7 +253,11 @@ function getSubStep(element, indent) {
 				.children('stepnumber')
 		);
 
-		outPut += `${indent}    - title: | \n${indent}       "${stepTitle}"\n${indent}      stepnumber: ${stepNumber}\n${indent}      substeps:\n`;
+		outPut += `${indent}    - step: | \n${indent}       "${stepTitle}"\n${indent}      stepnumber: ${stepNumber}\n`;
+
+		if ($(titleElement).next().length > 0) {
+			outPut += `${indent}      substeps:\n`;
+		}
 		// this is the begining of a substep
 		$(element).children().each(function(index, element) {
 			outPut += getSubStep(element, indent + '  ');
@@ -290,7 +296,12 @@ steps:
 				$(majorStep).children('stepnumber')
 			);
 
-			outPut += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n${indent}  substeps:\n`;
+			outPut += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n`;
+
+			if ($(majorStep).next().length > 0) {
+				outPut += `${indent}  substeps:\n`;
+			}
+
 			$(majorStep).siblings().each(function(index, element) {
 				outPut += getSubStep(element, indent);
 			});
