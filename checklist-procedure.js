@@ -3,21 +3,29 @@
 'use strict';
 
 if (!process.argv[2]) {
-	console.error('You must pass a valid file path into this script');
+	console.error('You must pass a valid path to the xml zip file into this script');
 	process.exit(1);
 }
 
 const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
+const AdmZip = require('adm-zip');
 
-const ipvFile = path.join(process.cwd(), process.argv[2]);
-const ipvFileDir = path.dirname(ipvFile);
+const ipvZipFile = path.join(process.cwd(), process.argv[2]);
+const ipvFileDir = path.dirname(ipvZipFile);
+const basename = path.basename(ipvZipFile, path.extname(ipvZipFile));
+
+// Extract IPV Zip file that contains XML and Images
+const zip = new AdmZip(ipvZipFile);
+zip.extractAllTo(ipvFileDir, true);
+
+const ipvFile = path.join(ipvFileDir, `${basename}.xml`);
 
 const projectDir = path.dirname(ipvFileDir);
-
 const tasksDir = path.join(projectDir, 'tasks'); // should be called activityDir need to fix when merging
 const procsDir = path.join(projectDir, 'procedures');
+const ipvSourceImageDir = path.join(ipvFileDir, `${basename}_files`);
 const imagesDir = path.join(projectDir, 'images');
 const odfSymbols = require('./odfSymbolMap.js');
 
@@ -31,7 +39,23 @@ if (!fs.existsSync(procsDir)) {
 	fs.mkdirSync(imagesDir);
 }
 
-const basename = path.basename(ipvFile, path.extname(ipvFile));
+// Read file directory from xml zip file and move images to patify image folder
+fs.readdir(ipvSourceImageDir, function(err, files) {
+	if (err) {
+		throw err;
+	}
+	files.forEach(function(file) {
+		fs.rename(path.join(ipvSourceImageDir, file), path.join(imagesDir, file), (err) => {
+			if (err) {
+				throw err;
+			}
+
+		});
+
+	});
+
+	console.log('Images loaded');
+});
 
 if (!['.xml'].includes(path.extname(ipvFile))) {
 	// Should perform more specific test to check xml is using IPV format
@@ -66,7 +90,8 @@ try {
  */
 function sanatizeInput(input) {
 	return input.text().trim()
-		.replace(/\s+/g, ' ');
+		.replace(/\s+/g, ' ')
+		.replace(/&/g, '&amp;');
 }
 
 /**
