@@ -72,7 +72,7 @@ if (!fs.existsSync(ipvFile)) {
 try {
 	console.log('Loading XML');
 	var $ = cheerio.load(
-		fs.readFileSync(process.argv[2]),
+		fs.readFileSync(ipvFile),
 		{
 			xmlMode: true,
 			lowerCaseTags: true
@@ -185,10 +185,10 @@ function getToolsPartsMarterials() {
 function getImages(element, indent) {
 	let imageYaml = '';
 	$(element).children('image').each(function(index, element) {
-		const alt = $(element).find('imagereference').attr('alt');
+		const alt = $(element).find('imagereference').attr('alt').replace(/(.*)\//, '');
 		const height = $(element).find('imagereference').attr('height');
 		const width = $(element).find('imagereference').attr('width');
-		const source = $(element).find('imagereference').attr('source');
+		const source = $(element).find('imagereference').attr('source').replace(/(.*)\//, '');
 		const text = sanatizeInput($(element).find('imagetitle > text'));
 		imageYaml += `${indent}    - images:\n${indent}      - path: "${source}"\n${indent}        text: "${text}"\n${indent}        width: ${width}\n${indent}        height: ${height}\n${indent}        alt: "${alt}"\n`;
 	});
