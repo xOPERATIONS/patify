@@ -145,6 +145,8 @@ function parseTools(element, indent, outPut = '') {
 		if (compareTag(element, 'toolsitem')) {
 			outPut += `${indent}- toolName: ${sanatizeInput($(element).children('toolsitemname'))}\n`;
 			outPut += `${indent}  partNumber: "${sanatizeInput($(element).children('partnumber'))}"\n`;
+			outPut += `${indent}  quantity: "${sanatizeInput($(element).children('quantity'))}"\n`;
+			outPut += `${indent}  comment: '${sanatizeInput($(element).children('comment'))}'\n`;
 		} else if (compareTag(element, 'containeritem', 'includes')) {
 			return;
 		} else if (compareTag(element, 'container', 'includes')) {
@@ -152,7 +154,7 @@ function parseTools(element, indent, outPut = '') {
 			outPut += `${indent}  containerContents:\n`;
 		}
 
-		parseTools(element, indent + '  ', outPut);
+		parseTools(element, indent + '  ');
 	});
 
 	return outPut;
