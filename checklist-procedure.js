@@ -263,7 +263,7 @@ function getSubStep(element, indent) {
 		// StepContent has attributes: itemID, checkBoxes, spacingAbove
 		const instruction = sanatizeInput($(element).children('instruction'));
 		if (instruction) {
-			outPut += `${indent}    - step: | \n${indent}       "${instruction}"\n`;
+			outPut += `${indent}    - step: '${instruction}'\n`;
 		}
 
 		outPut += getImages(element, indent);
@@ -280,7 +280,7 @@ function getSubStep(element, indent) {
 				.children('stepnumber')
 		);
 
-		outPut += `${indent}    - step: | \n${indent}       "${stepTitle}"\n${indent}      stepnumber: ${stepNumber}\n`;
+		outPut += `${indent}    - step: '${stepTitle}'\n${indent}      stepnumber: ${stepNumber}\n`;
 
 		if ($(titleElement).next().length > 0) {
 			outPut += `${indent}      substeps:\n`;
