@@ -9,7 +9,8 @@ const odfToMaestroMap = {
 	'odf-disconnect-symbol': '{{DISCONNECT}}',
 	'odf-connect-symbol': '{{CONNECT}}',
 	'odf-clockwise-sign': '{{CLOCKWISE}}',
-	'odf-counterclockwise-sign': '{{COUNTERCLOCKWISE}}'
+	'odf-counterclockwise-sign': '{{COUNTERCLOCKWISE}}',
+	nbsp: ' '
 };
 const maestroToOdfMap = {};
 

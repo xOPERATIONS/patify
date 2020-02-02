@@ -122,7 +122,10 @@ function getItemizedLists() {
 				$(element).find('listtitle')
 			)
 				.replace(':', '')
-				.replace(' ', '_')
+				.replace(' ', '')
+				.replace('(', '')
+				.replace(')', '')
+				.toLowerCase()
 		}:\n`;
 		$(element).children('para').each(function(index, element) {
 			outPut += `  - |\n    ${sanatizeInput($(element))}\n`;
