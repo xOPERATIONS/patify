@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const cheerio = require('cheerio');
 const AdmZip = require('adm-zip');
+const yaml = require('js-yaml');
 
 const ipvZipFile = path.join(process.cwd(), process.argv[2]);
 const ipvFileDir = path.dirname(ipvZipFile);
@@ -144,8 +145,16 @@ function getItemizedLists() {
  * @return {string}        yaml output
  */
 function parseTools(element, indent, outPut = '') {
+	const toolsOutput = [];
 	$(element).children().each(function(index, element) {
 		if (compareTag(element, 'toolsitem')) {
+			toolsOutput[index] = {
+				toolName: sanatizeInput($(element).children('toolsitemname')),
+				partNumber: sanatizeInput($(element).children('partnumber')),
+				quantity: sanatizeInput($(element).children('quantity')),
+				comment: sanatizeInput($(element).children('comment'))
+			};
+
 			outPut += `${indent}- toolName: ${sanatizeInput($(element).children('toolsitemname'))}\n`;
 			outPut += `${indent}  partNumber: "${sanatizeInput($(element).children('partnumber'))}"\n`;
 			outPut += `${indent}  quantity: "${sanatizeInput($(element).children('quantity'))}"\n`;
@@ -153,12 +162,20 @@ function parseTools(element, indent, outPut = '') {
 		} else if (compareTag(element, 'containeritem', 'includes')) {
 			return;
 		} else if (compareTag(element, 'container', 'includes')) {
+			toolsOutput[index] = {
+				containerName: $(element).children('containeritem').text().trim(),
+				containerContents: ''
+			};
 			outPut += `${indent}- containerName: ${$(element).children('containeritem').text().trim()}\n`;
 			outPut += `${indent}  containerContents:\n`;
+		} else {
+			toolsOutput[index] = '';
 		}
 
-		parseTools(element, indent + '  ');
+		// parseTools(element, indent + '  ');
 	});
+	// console.log(toolsOutput);
+	// console.log(yaml.safeDump(toolsOutput));
 
 	return outPut;
 
@@ -187,16 +204,22 @@ function getToolsPartsMarterials() {
  * @param {string} indent   current yaml indent
  * @return {string}         yaml output
  */
-function getImages(element, indent) {
-	let imageYaml = '';
+function getImages(element) {
+	let imageYaml = {};
+
 	$(element).children('image').each(function(index, element) {
-		const alt = $(element).find('imagereference').attr('alt').replace(/(.*)\//, '');
-		const height = $(element).find('imagereference').attr('height');
-		const width = $(element).find('imagereference').attr('width');
-		const source = $(element).find('imagereference').attr('source').replace(/(.*)\//, '');
-		const text = sanatizeInput($(element).find('imagetitle > text'));
-		imageYaml += `${indent}    - images:\n${indent}      - path: "${source}"\n${indent}        text: "${text}"\n${indent}        width: ${width}\n${indent}        height: ${height}\n${indent}        alt: "${alt}"\n`;
+		imageYaml = {
+			images: [{
+				path: $(element).find('imagereference').attr('source').replace(/(.*)\//, ''),
+				text: sanatizeInput($(element).find('imagetitle > text')),
+				width: $(element).find('imagereference').attr('width'),
+				height: $(element).find('imagereference').attr('height'),
+				alt: $(element).find('imagereference').attr('alt').replace(/(.*)\//, '')
+			}]
+		};
+
 	});
+
 	return imageYaml;
 }
 
@@ -233,69 +256,30 @@ tasks:
 	return output;
 }
 
-/**
- *
- * @param {Object} element parent xml tag
- * @param {string} indent  current indent for correct yaml formating
- * @return {string}        yaml text of substep
- */
-function getSubStep(element, indent) {
-	let outPut = '';
-	const tagType = $(element)
-		.prop('tagName')
-		.toLowerCase();
-	// Steptitle consists of locationinfo, stepnumber, centername
-	// choicereference, symbol, text, instruction, navinfo
-	// todo reference other procedures for application of locationinfo,
-	// todo centername, choicereference, symbol, instruction, navinfo
-	// If title is direct child of steptitle tag then that is the step title
-	// We won't use stepnumber to generate the actual procedure but am tracking for now
+function buildStepFromElement(element) {
+	const buildStepFromElement = {};
+	if (compareTag(element, 'stepcontent')) {
+		buildStepOutput = { text: sanatizeInput($(element).find('steptitle > instruction').first()) };
+		buildStepOutput = getImages(element);
+	}
 
-	if (tagType === 'steptitle') {
-		// doesn't do anything, title is handled when a step tag is found
-	} else if (tagType === 'clarifyinginfo') {
+	if (compareTag(element, 'clarifyinginfo')) {
 		const ncwType = $(element).attr('infoType');
-		outPut += `${indent}    - ${ncwType}:\n`;
+		buildStepOutput[ncwType] = buildStepOutput[ncwType] || [];
 		$(element).children('infotext').each(function(index, element) {
-			const content = sanatizeInput($(element));
-			outPut += `${indent}      - "${content}"\n`;
+			buildStepOutput[ncwType].push(sanatizeInput($(element)));
 		});
-	} else if (tagType === 'stepcontent') {
-		// StepContent consists of: offnominalblock, alternateblock
-		// groundblock, image, table, itemizedlist, locationinfo, instruction, navinfo
-		// StepContent has attributes: itemID, checkBoxes, spacingAbove
-		const instruction = sanatizeInput($(element).children('instruction'));
-		if (instruction) {
-			outPut += `${indent}    - step: '${instruction}'\n`;
-		}
+	}
 
-		outPut += getImages(element, indent);
-	} else if (tagType === 'step') {
-		const titleElement = $(element).children('stepTitle');
-
-		const stepTitle = sanatizeInput(
-			$(titleElement)
-				.find('instruction')
-		);
-
-		const stepNumber = sanatizeInput(
-			$(titleElement)
-				.children('stepnumber')
-		);
-
-		outPut += `${indent}    - step: '${stepTitle}'\n${indent}      stepnumber: ${stepNumber}\n`;
-
-		if ($(titleElement).next().length > 0) {
-			outPut += `${indent}      substeps:\n`;
-		}
-		// this is the begining of a substep
+	if (compareTag(element, 'step')) {
+		buildStepOutput.substeps = buildStepOutput.substeps || [];
 		$(element).children().each(function(index, element) {
-			outPut += getSubStep(element, indent + '  ');
+			buildStepOutput.substeps.push(buildStepFromElement(element));
 		});
 
 	}
-	return outPut;
 
+	return buildStepOutput;
 }
 
 /**
@@ -303,44 +287,31 @@ function getSubStep(element, indent) {
  * @return {string}  yaml output
  */
 function getSteps() {
-	let outPut = '';
-	outPut += `title: ${basename}
-roles:
-  - name: IV1
-    duration:
-      minutes: 150
-steps:
-  - IV:\n`;
+	const outPutYaml = {
+		title: basename,
+		roles: {
+			name: 'IV',
+			duration: {
+				minutes: 150
+			}
+		},
+		steps: [{ IV: [] }]
+	};
 
 	$('ChecklistProcedure > step').each(function(index, element) {
-		const indent = '      ';
-		// todo fixme don't hardcode time
-		// taskHeader is equivalent to procedure header for IPV procedures.
-
-		$(element).children('steptitle').each(function(index, majorStep) {
-
-			const title = sanatizeInput(
-				$(majorStep).children('text')
-			);
-			const stepnumber = sanatizeInput(
-				$(majorStep).children('stepnumber')
-			);
-
-			outPut += `${indent}- title: "${title}"\n${indent}  stepnumber: ${stepnumber}\n`;
-
-			if ($(majorStep).next().length > 0) {
-				outPut += `${indent}  substeps:\n`;
-			}
-
-			$(majorStep).siblings().each(function(index, element) {
-				outPut += getSubStep(element, indent);
-			});
-
+		outPutYaml.steps[0].IV.substep = outPutYaml.steps[0].IV.substep || [];
+		outPutYaml.steps[0].IV.push({
+			title: sanatizeInput($(element).find('steptitle > text').first())
+		});
+		$(element).find('steptitle').first().siblings().each(function(index, element) {
+			outPutYaml.steps[0].IV.push(buildStepFromElement(element));
 		});
 
 	});
 
-	return outPut;
+	console.log(yaml.safeDump(outPutYaml));
+
+	return yaml.safeDump(outPutYaml);
 }
 
 $('VerifyCallout').each(function(index, element) {
