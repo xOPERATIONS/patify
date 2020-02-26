@@ -256,38 +256,67 @@ tasks:
 	return output;
 }
 
-function buildStepFromElement(element) {
-	const buildStepFromElement = {};
-	if (compareTag(element, 'stepcontent')) {
-		buildStepOutput = { text: sanatizeInput($(element).find('steptitle > instruction').first()) };
-		buildStepOutput = getImages(element);
+function buildStepFromElement(givenElement) {
+	const steps = [];
+	let currentComponent = {};
+	$(givenElement).children().each(function(index, currentElement) {
+
+		if (compareTag(currentElement, 'steptitle')) {
+			const instructionText = sanatizeInput($(currentElement).find('instruction'));
+			const titleText = sanatizeInput($(currentElement).children('text'));
+			if (instructionText) {
+				if (!currentComponent.text) {
+					currentComponent.text = [];
+				}
+				currentComponent.text.push(instructionText);
+			}
+			if (titleText.length > 0) {
+				if (Object.keys(currentComponent).length > 0) {
+					steps.push(currentComponent);
+					currentComponent = {};
+				}
+				currentComponent.title = titleText;
+			}
+		}
+
+		if (compareTag(currentElement, 'stepcontent')) {
+			const instruction = sanatizeInput($(currentElement).find('instruction'));
+			if (instruction.length > 0) {
+				currentComponent.text = currentComponent.text || [];
+				currentComponent.text.push(instruction);
+			}
+		}
+
+		// if (compareTag(currentElement, 'clarifyinginfo')) {
+		// 	const ncwType = $(currentElement).attr('infoType');
+		// 	buildStepOutput[ncwType] = buildStepOutput[ncwType] || [];
+		// 	$(element).children('infotext').each(function(index, ncwText) {
+		// 		buildStepOutput[ncwType].push(sanatizeInput($(ncwText)));
+		// 	});
+		// }
+		// 	if ($(currentElement).find('image')) {
+		// 	// write images here
+		// 	// buildStepOutput.push(getImages(element));
+		// 	}
+		// }
+
+		if (compareTag(currentElement, 'step')) {
+			currentComponent.substeps = steps.substeps || [];
+			currentComponent.substeps.push(...buildStepFromElement(currentElement));
+		}
+
+	});
+
+	if (Object.keys(currentComponent).length > 0) {
+		steps.push(currentComponent);
 	}
 
-	if (compareTag(element, 'clarifyinginfo')) {
-		const ncwType = $(element).attr('infoType');
-		buildStepOutput[ncwType] = buildStepOutput[ncwType] || [];
-		$(element).children('infotext').each(function(index, element) {
-			buildStepOutput[ncwType].push(sanatizeInput($(element)));
-		});
-	}
+	return steps;
 
-	if (compareTag(element, 'step')) {
-		buildStepOutput.substeps = buildStepOutput.substeps || [];
-		$(element).children().each(function(index, element) {
-			buildStepOutput.substeps.push(buildStepFromElement(element));
-		});
-
-	}
-
-	return buildStepOutput;
 }
 
-/**
- * iterates over each top level step tag for each tag it calls getSubStep()
- * @return {string}  yaml output
- */
-function getSteps() {
-	const outPutYaml = {
+function buildActivity() {
+	const activity = {
 		title: basename,
 		roles: {
 			name: 'IV',
@@ -298,21 +327,33 @@ function getSteps() {
 		steps: [{ IV: [] }]
 	};
 
-	$('ChecklistProcedure > step').each(function(index, element) {
-		outPutYaml.steps[0].IV.substep = outPutYaml.steps[0].IV.substep || [];
-		outPutYaml.steps[0].IV.push({
-			title: sanatizeInput($(element).find('steptitle > text').first())
-		});
-		$(element).find('steptitle').first().siblings().each(function(index, element) {
-			outPutYaml.steps[0].IV.push(buildStepFromElement(element));
-		});
+	activity.steps[0].IV.push(...buildStepFromElement('ChecklistProcedure > step'));
 
-	});
+	return yaml.safeDump(activity);
 
-	console.log(yaml.safeDump(outPutYaml));
-
-	return yaml.safeDump(outPutYaml);
 }
+
+/**
+ * iterates over each top level step tag for each tag it calls getSubStep()
+ * @return {string}  yaml output
+ */
+// function getSteps(element) {
+
+// 	$(element).each(function(index, element) {
+// 		outPutYaml.steps[0].IV.substep = outPutYaml.steps[0].IV.substep || [];
+// 		outPutYaml.steps[0].IV.push({
+// 			title: sanatizeInput($(element).find('steptitle > text').first())
+// 		});
+// 		$(element).find('steptitle').first().siblings().each(function(index, element) {
+// 			outPutYaml.steps[0].IV.push(buildStepFromElement(element));
+// 		});
+
+// 	});
+
+// 	console.log(yaml.safeDump(outPutYaml));
+
+// 	return yaml.safeDump(outPutYaml);
+// }
 
 $('VerifyCallout').each(function(index, element) {
 	const verifyType = $(element).attr('verifyType').toUpperCase();
@@ -334,4 +375,4 @@ $('verifyoperator').each(function(index, element) {
 // write procedure file
 fs.writeFileSync(path.join(procsDir, `${basename}.yml`), `${getProcHeader()}`);
 // write task file
-fs.writeFileSync(path.join(tasksDir, `${basename}.yml`), `${getSteps()}`);
+fs.writeFileSync(path.join(tasksDir, `${basename}.yml`), `${buildActivity()}`);
