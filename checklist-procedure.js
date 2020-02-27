@@ -55,7 +55,6 @@ fs.readdir(ipvSourceImageDir, function(err, files) {
 
 	});
 
-	console.log('Images loaded');
 });
 
 if (!['.xml'].includes(path.extname(ipvFile))) {
@@ -228,32 +227,37 @@ function getImages(element) {
  * @return {string}  procedure header yaml
  */
 function getProcHeader() {
-	let output = '';
-	output += `schemaVersion: ${$('schemaversion').text().trim()}\n`;
-	output += `authoringTool: ${$('authoringtool').text().trim()}\n`;
-	output += 'metaData:\n';
-	output += `  procType: ${$('metadata').attr('proctype')}\n`;
-	output += `  status: ${$('metadata').attr('status')}\n`;
-	output += `  date: ${sanatizeInput($('metadata > date'))}\n`;
-	output += `  uniqueid: ${sanatizeInput($('metadata > uniqueid'))}\n`;
-	output += `  book: ${sanatizeInput($('metadata > book'))}\n`;
-	output += `  applicability: ${sanatizeInput($('metadata > applicability'))}\n`;
-	output += `  version: ${sanatizeInput($('metadata > version'))}\n`;
-	output += `  procCode: ${sanatizeInput($('metadata > proccode'))}\n`;
-	output += `procedure_number: ${$('proctitle > procnumber').text().trim()}\n`;
-	output += `procedure_name: ${$('proctitle > text').text().trim()}\n`;
-	output += `procedure_objective:  |\n  ${$('procedureobjective').text().trim()}\n`;
-	output += getItemizedLists(); // gets duration, crew, location data
-	output += getToolsPartsMarterials();
-	output += `columns:
-  - key: IV
-    actors: "*"
-
-tasks:
-  - file: ${basename}.yml
-    roles:
-      IV1: IV`;
-	return output;
+	const outPut = {
+		procedure_number: $('proctitle > procnumber').text().trim(),
+		procedure_name: $('proctitle > text').text().trim(),
+		schemaVersion: $('schemaversion').text().trim(),
+		authoringTool: $('authoringtool').text().trim(),
+		metaData: {
+			procType: $('metadata').attr('procType'),
+			status: $('metadata').attr('status'),
+			date: sanatizeInput($('metadata > date')),
+			uniqueid: sanatizeInput($('metadata > uniqueid')),
+			book: sanatizeInput($('metadata > book')),
+			applicability: sanatizeInput($('metadata > applicability')),
+			version: sanatizeInput($('metadata > version')),
+			procCode: sanatizeInput($('metadata > proccode'))
+		},
+		procedure_objective: $('procedureobjective').text().trim(),
+		// getItemizedLists(), // gets duration, crew, location data
+		// getToolsPartsMarterials(),
+		columns: [
+			{
+				key: 'IV',
+				actors: ['*']
+			}
+		],
+		tasks: [{
+			file: `${basename}.yml`,
+			roles: { IV1: 'IV' }
+		}]
+	};
+	console.log(outPut);
+	return yaml.safeDump(outPut);
 }
 
 function buildStepFromElement(givenElement) {
@@ -318,12 +322,12 @@ function buildStepFromElement(givenElement) {
 function buildActivity() {
 	const activity = {
 		title: basename,
-		roles: {
-			name: 'IV',
+		roles: [{
+			name: 'IV1',
 			duration: {
 				minutes: 150
 			}
-		},
+		}],
 		steps: [{ IV: [] }]
 	};
 
