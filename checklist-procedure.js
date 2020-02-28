@@ -230,9 +230,10 @@ function getProcHeader() {
 	const outPut = {
 		procedure_number: $('proctitle > procnumber').text().trim(),
 		procedure_name: $('proctitle > text').text().trim(),
-		schemaVersion: $('schemaversion').text().trim(),
-		authoringTool: $('authoringtool').text().trim(),
-		metaData: {
+		ipvFields: {
+			schemaVersion: $('schemaversion').text().trim(),
+			authoringTool: $('authoringtool').text().trim(),
+			procedure_objective: $('procedureobjective').text().trim(),
 			procType: $('metadata').attr('procType'),
 			status: $('metadata').attr('status'),
 			date: sanatizeInput($('metadata > date')),
@@ -242,7 +243,6 @@ function getProcHeader() {
 			version: sanatizeInput($('metadata > version')),
 			procCode: sanatizeInput($('metadata > proccode'))
 		},
-		procedure_objective: $('procedureobjective').text().trim(),
 		// getItemizedLists(), // gets duration, crew, location data
 		// getToolsPartsMarterials(),
 		columns: [
