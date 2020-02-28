@@ -111,25 +111,24 @@ function compareTag(subject, comparison, option = 'tagName') {
 
 /**
  * parse trhough itemized list tags (location, duration, crew)
- * @return {string}  yaml markup for location, duration, crew,
- *                   ref procedures
+ * @param  {Array} input     array of itemized list items
+ * @return {string}          yaml markup for location, duration, crew,
+ *                           ref procedures
  */
-function getItemizedLists() {
-	let outPut = '';
+function getItemizedList(input) {
+	const outPut = [];
 	$('itemizedlist').each(function(index, element) {
-		outPut += `${
-			sanatizeInput(
-				$(element).find('listtitle')
-			)
-				.replace(':', '')
-				.replace(' ', '')
-				.replace('(', '')
-				.replace(')', '')
-				.toLowerCase()
-		}:\n`;
-		$(element).children('para').each(function(index, element) {
-			outPut += `  - |\n    ${sanatizeInput($(element))}\n`;
-		});
+		const listTitle = sanatizeInput($(element).find('listtitle'))
+			.replace(':', '')
+			.replace(' ', '')
+			.replace('(', '')
+			.replace(')', '')
+			.toLowerCase();
+		if (listTitle === input) {
+			$(element).children('para').each(function(index, element) {
+				outPut.push(sanatizeInput($(element)));
+			});
+		}
 
 	});
 
@@ -184,6 +183,7 @@ function parseTools(element, indent, outPut = '') {
  * Runs parseTools for tools, parts, materials section
  * @return {string}     yaml output
  */
+/*
 function getToolsPartsMarterials() {
 	let outPut = '';
 	const sectionList = ['parts', 'materials', 'tools'];
@@ -196,6 +196,7 @@ function getToolsPartsMarterials() {
 
 	return outPut;
 }
+*/
 
 /**
  * retrieves yaml output for an image
@@ -207,15 +208,13 @@ function getImages(element) {
 	let imageYaml = {};
 
 	$(element).children('image').each(function(index, element) {
-		imageYaml = {
-			images: [{
-				path: $(element).find('imagereference').attr('source').replace(/(.*)\//, ''),
-				text: sanatizeInput($(element).find('imagetitle > text')),
-				width: $(element).find('imagereference').attr('width'),
-				height: $(element).find('imagereference').attr('height'),
-				alt: $(element).find('imagereference').attr('alt').replace(/(.*)\//, '')
-			}]
-		};
+		imageYaml = [{
+			path: $(element).find('imagereference').attr('source').replace(/(.*)\//, ''),
+			text: sanatizeInput($(element).find('imagetitle > text')),
+			width: parseInt(($(element).find('imagereference').attr('width'))),
+			height: parseInt($(element).find('imagereference').attr('height')),
+			alt: $(element).find('imagereference').attr('alt').replace(/(.*)\//, '')
+		}];
 
 	});
 
@@ -228,22 +227,25 @@ function getImages(element) {
  */
 function getProcHeader() {
 	const outPut = {
-		procedure_number: $('proctitle > procnumber').text().trim(),
 		procedure_name: $('proctitle > text').text().trim(),
 		ipvFields: {
+			number: $('proctitle > procnumber').text().trim(),
 			schemaVersion: $('schemaversion').text().trim(),
 			authoringTool: $('authoringtool').text().trim(),
-			procedure_objective: $('procedureobjective').text().trim(),
+			objective: $('procedureobjective').text().trim(),
 			procType: $('metadata').attr('procType'),
 			status: $('metadata').attr('status'),
 			date: sanatizeInput($('metadata > date')),
-			uniqueid: sanatizeInput($('metadata > uniqueid')),
+			mNumber: sanatizeInput($('metadata > uniqueid')),
 			book: sanatizeInput($('metadata > book')),
 			applicability: sanatizeInput($('metadata > applicability')),
-			version: sanatizeInput($('metadata > version')),
-			procCode: sanatizeInput($('metadata > proccode'))
+			ipvVersion: sanatizeInput($('metadata > version')),
+			procCode: sanatizeInput($('metadata > proccode')),
+			ipvLocation: getItemizedList('location'),
+			ipvDuration: getItemizedList('duration'),
+			crewRequired: getItemizedList('crew'),
+			referencedProcedures: getItemizedList('referencedprocedures')
 		},
-		// getItemizedLists(), // gets duration, crew, location data
 		// getToolsPartsMarterials(),
 		columns: [
 			{
@@ -285,27 +287,27 @@ function buildStepFromElement(givenElement) {
 
 		if (compareTag(currentElement, 'stepcontent')) {
 			const instruction = sanatizeInput($(currentElement).find('instruction'));
+			const image = sanatizeInput($(currentElement).find('image'));
 			if (instruction.length > 0) {
 				currentComponent.text = currentComponent.text || [];
 				currentComponent.text.push(instruction);
 			}
+			if (image) {
+				currentComponent.images = currentComponent.images || [];
+				currentComponent.images.push(...getImages(currentElement));
+			}
 		}
 
-		// if (compareTag(currentElement, 'clarifyinginfo')) {
-		// 	const ncwType = $(currentElement).attr('infoType');
-		// 	buildStepOutput[ncwType] = buildStepOutput[ncwType] || [];
-		// 	$(element).children('infotext').each(function(index, ncwText) {
-		// 		buildStepOutput[ncwType].push(sanatizeInput($(ncwText)));
-		// 	});
-		// }
-		// 	if ($(currentElement).find('image')) {
-		// 	// write images here
-		// 	// buildStepOutput.push(getImages(element));
-		// 	}
-		// }
+		if (compareTag(currentElement, 'clarifyinginfo')) {
+			const ncwType = $(currentElement).attr('infoType');
+			currentComponent[ncwType] = currentComponent[ncwType] || [];
+			$(currentElement).children('infotext').each(function(index, ncwText) {
+				currentComponent[ncwType].push(sanatizeInput($(ncwText)));
+			});
+		}
 
 		if (compareTag(currentElement, 'step')) {
-			currentComponent.substeps = steps.substeps || [];
+			currentComponent.substeps = currentComponent.substeps || [];
 			currentComponent.substeps.push(...buildStepFromElement(currentElement));
 		}
 
@@ -336,28 +338,6 @@ function buildActivity() {
 	return yaml.safeDump(activity);
 
 }
-
-/**
- * iterates over each top level step tag for each tag it calls getSubStep()
- * @return {string}  yaml output
- */
-// function getSteps(element) {
-
-// 	$(element).each(function(index, element) {
-// 		outPutYaml.steps[0].IV.substep = outPutYaml.steps[0].IV.substep || [];
-// 		outPutYaml.steps[0].IV.push({
-// 			title: sanatizeInput($(element).find('steptitle > text').first())
-// 		});
-// 		$(element).find('steptitle').first().siblings().each(function(index, element) {
-// 			outPutYaml.steps[0].IV.push(buildStepFromElement(element));
-// 		});
-
-// 	});
-
-// 	console.log(yaml.safeDump(outPutYaml));
-
-// 	return yaml.safeDump(outPutYaml);
-// }
 
 $('VerifyCallout').each(function(index, element) {
 	const verifyType = $(element).attr('verifyType').toUpperCase();
