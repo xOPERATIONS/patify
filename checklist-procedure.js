@@ -142,6 +142,7 @@ function getItemizedList(input) {
  * @param {string} outPut  yaml output
  * @return {string}        yaml output
  */
+/*
 function parseTools(element, indent, outPut = '') {
 	const toolsOutput = [];
 	$(element).children().each(function(index, element) {
@@ -178,6 +179,7 @@ function parseTools(element, indent, outPut = '') {
 	return outPut;
 
 }
+*/
 
 /**
  * Runs parseTools for tools, parts, materials section
@@ -225,11 +227,13 @@ function getImages(element) {
  * retrieves header content of procedure
  * @return {string}  procedure header yaml
  */
+
 function getProcHeader() {
 	const outPut = {
+		// eslint-disable-next-line camelcase
 		procedure_name: $('proctitle > text').text().trim(),
 		ipvFields: {
-			number: $('proctitle > procnumber').text().trim(),
+			procNumber: $('proctitle > procnumber').text().trim(),
 			schemaVersion: $('schemaversion').text().trim(),
 			authoringTool: $('authoringtool').text().trim(),
 			objective: $('procedureobjective').text().trim(),
