@@ -262,8 +262,29 @@ function getProcHeader() {
 			roles: { IV1: 'IV' }
 		}]
 	};
-	console.log(outPut);
 	return yaml.safeDump(outPut);
+}
+
+function replaceFigureCalls(instructionElement) {
+	let textToReturn = '';
+	$(instructionElement).find('ReferenceInfo').each(function(index, referenceElement) {
+		if (referenceElement) {
+			const HyperlinkTarget = $(referenceElement).find('Hyperlink').attr('target');
+			$(referenceElement).html(`<text>{{REF|${HyperlinkTarget}}}</text>`);
+
+		}
+
+	});
+
+	textToReturn = instructionElement.text().trim()
+		.replace(/\((\s)*{{REF/g, '{{REF')
+		.replace(/{{REF\|((\w|\/)*\.(\w*))}}(\s)*\)/g, '{{REF|$1}}')
+		.replace(/\((\s)*Figure\s\d{1,}(\s)*\)/g, '')
+		.replace(/\s+/g, ' ')
+		.replace(/&/g, '&amp;');
+
+	return textToReturn;
+
 }
 
 function buildStepFromElement(givenElement) {
@@ -272,7 +293,7 @@ function buildStepFromElement(givenElement) {
 	$(givenElement).children().each(function(index, currentElement) {
 
 		if (compareTag(currentElement, 'steptitle')) {
-			const instructionText = sanatizeInput($(currentElement).find('instruction'));
+			const instructionText = replaceFigureCalls($(currentElement).find('instruction'));
 			const titleText = sanatizeInput($(currentElement).children('text'));
 			if (instructionText) {
 				if (!currentComponent.text) {
@@ -290,7 +311,7 @@ function buildStepFromElement(givenElement) {
 		}
 
 		if (compareTag(currentElement, 'stepcontent')) {
-			const instruction = sanatizeInput($(currentElement).find('instruction'));
+			const instruction = replaceFigureCalls($(currentElement).find('instruction'));
 			const image = sanatizeInput($(currentElement).find('image'));
 			if (instruction.length > 0) {
 				currentComponent.text = currentComponent.text || [];
