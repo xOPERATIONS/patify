@@ -276,8 +276,8 @@ function processParagraph(index, paragraphSourceText, colId) {
 		.replace(/&nbsp;/g, ' ')
 		.replace(/\n/g, ' ')
 		.replace(/\s+/g, ' ')
-		.replace(/EV1/g, '{{role:crewA}}')
-		.replace(/EV2/g, '{{role:crewB}}')
+		.replace(/EV1/g, '{{ROLE|crewA}}')
+		.replace(/EV2/g, '{{ROLE|crewB}}')
 		.replace(/Ö/g, '{{CHECK}}')
 		.replace(/¬/g, '{{LEFT}}')
 		.replace(/®/g, '{{RIGHT}}')
@@ -413,7 +413,12 @@ ${steps}
 `;
 };
 
-$('body > div > div > table').each((t, table) => {
+$('body > div > div > table, body > div > table').each((t, table) => {
+
+	const head = $(table).children('thead');
+	if (!head || head.length === 0) {
+		return;
+	}
 
 	const colHeaders = [];
 	$(table).children('thead').children('tr').children('td').each((i, e) => {
