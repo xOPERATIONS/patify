@@ -269,8 +269,9 @@ function replaceFigureCalls(instructionElement) {
 	let textToReturn = '';
 	$(instructionElement).find('ReferenceInfo').each(function(index, referenceElement) {
 		if (referenceElement) {
-			const HyperlinkTarget = $(referenceElement).find('Hyperlink').attr('target');
-			$(referenceElement).html(`<text>{{REF|${HyperlinkTarget}}}</text>`);
+			// FIXME ref links point to PDFs, not actual images would make sense to point to images.
+			const hyperlinkTarget = $(referenceElement).find('Hyperlink').attr('target');
+			$(referenceElement).html(`<text>{{REF|${hyperlinkTarget}}}</text>`);
 
 		}
 
